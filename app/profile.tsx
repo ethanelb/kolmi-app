@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import {
+  ActivityIndicator,
   Dimensions,
   Image,
   KeyboardAvoidingView,
@@ -88,6 +89,7 @@ export default function ProfileScreen() {
   ])
   const [lifestyle, setLifestyle] = useState<Record<string, string>>({})
   const [dirty, setDirty] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     getKolmiProfile().then((p: KolmiProfile) => {
@@ -129,19 +131,24 @@ export default function ProfileScreen() {
   }
 
   const handleSave = async () => {
-    if (!isValid) return
+    if (!isValid || saving) return
     tapMedium()
-    const ok = await safePersist(() =>
-      saveKolmiProfile({
-        firstName: firstName.trim(),
-        photoUrls: photos.filter((p): p is string => Boolean(p)),
-        lifestyle,
-      }),
-    )
-    if (!ok) return
-    success()
-    setDirty(false)
-    router.back()
+    setSaving(true)
+    try {
+      const ok = await safePersist(() =>
+        saveKolmiProfile({
+          firstName: firstName.trim(),
+          photoUrls: photos.filter((p): p is string => Boolean(p)),
+          lifestyle,
+        }),
+      )
+      if (!ok) return
+      success()
+      setDirty(false)
+      router.back()
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -285,21 +292,28 @@ export default function ProfileScreen() {
           <View style={styles.footer}>
             <TouchableOpacity
               onPress={handleSave}
-              disabled={!isValid || !dirty}
-              activeOpacity={isValid && dirty ? 0.85 : 1}
+              disabled={!isValid || !dirty || saving}
+              activeOpacity={isValid && dirty && !saving ? 0.85 : 1}
               style={[
                 styles.cta,
                 (!isValid || !dirty) && styles.ctaDisabled,
               ]}
             >
-              <Text
-                style={[
-                  styles.ctaText,
-                  (!isValid || !dirty) && styles.ctaTextDisabled,
-                ]}
-              >
-                {dirty ? 'Enregistrer' : 'À jour'}
-              </Text>
+              {saving ? (
+                <View style={styles.ctaSavingRow}>
+                  <ActivityIndicator size="small" color={kolmiColors.white} />
+                  <Text style={styles.ctaText}>Enregistrement…</Text>
+                </View>
+              ) : (
+                <Text
+                  style={[
+                    styles.ctaText,
+                    (!isValid || !dirty) && styles.ctaTextDisabled,
+                  ]}
+                >
+                  {dirty ? 'Enregistrer' : 'À jour'}
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -482,5 +496,10 @@ const styles = StyleSheet.create({
   },
   ctaTextDisabled: {
     color: kolmiColors.textMuted,
+  },
+  ctaSavingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: kolmiSpace.xs + 2,
   },
 })
