@@ -237,7 +237,11 @@ function DiscoverCard({
           style={{ width: '100%', height: 220, backgroundColor: kolmiColors.surfaceSoft }}
         />
       ) : (
-        <ProfilePhotoPlaceholder height={220} initial={profile.firstName} />
+        <ProfilePhotoPlaceholder
+          height={220}
+          initial={profile.firstName}
+          profileId={profile.id}
+        />
       )}
       <View style={{ padding: kolmiSpace.md, gap: kolmiSpace.xs }}>
         <Text

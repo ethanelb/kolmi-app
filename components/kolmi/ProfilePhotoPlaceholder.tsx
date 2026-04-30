@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { Text, View, type ViewStyle } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { kolmiColors, kolmiFonts, kolmiRadius } from '@/constants/kolmiTheme'
@@ -8,6 +8,9 @@ type Props = {
   initial?: string
   borderRadius?: number
   style?: ViewStyle
+  // Optional identifier surfaced in console.error when the placeholder has
+  // no usable initial — signals that the profile data is incomplete.
+  profileId?: string
 }
 
 export default function ProfilePhotoPlaceholder({
@@ -15,8 +18,19 @@ export default function ProfilePhotoPlaceholder({
   initial,
   borderRadius = 0,
   style,
+  profileId,
 }: Props) {
   const letter = (initial ?? '').trim().charAt(0).toUpperCase()
+
+  useEffect(() => {
+    if (!letter) {
+      console.error(
+        `[ProfilePhotoPlaceholder] No usable initial for profile${
+          profileId ? ` "${profileId}"` : ''
+        } — falling back to wordmark. Check that firstName is populated.`
+      )
+    }
+  }, [letter, profileId])
 
   return (
     <View

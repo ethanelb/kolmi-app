@@ -93,6 +93,7 @@ export default function MatchDetailScreen() {
                 height={380}
                 initial={profile.firstName}
                 borderRadius={kolmiRadius.lg}
+                profileId={profile.id}
               />
             </Animated.View>
           )}
