@@ -1,9 +1,16 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 import Svg, { Path } from 'react-native-svg'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import * as Haptics from 'expo-haptics'
+import Animated, {
+  interpolateColor,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated'
 import {
   kolmiColors,
   kolmiFonts,
@@ -11,12 +18,16 @@ import {
   kolmiRadius,
   kolmiSpace,
 } from '@/constants/kolmiTheme'
+import { kolmiMotion } from '@/lib/kolmi/motion'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import { mockMeetings } from '@/data/mockMeetings'
 import { getSelectedProfileById } from '@/data/mockSelectedProfiles'
 import { getMeetingById, saveMeeting, updateMeeting } from '@/lib/kolmi/storage'
 import { KOLMI_DEMO_MODE } from '@/constants/kolmiConfig'
 import type { Meeting } from '@/lib/kolmi/types'
+
+const SLOT_BG_OFF = '#FAF8F5'
+const SLOT_BG_ON = '#FBEFEF'
 
 const SLOT_OPTIONS = [
   'Mardi 19h00',
@@ -279,61 +290,14 @@ export default function MeetingScheduleScreen() {
             </View>
 
             <View style={{ gap: kolmiSpace.sm }}>
-              {SLOT_OPTIONS.map((slot) => {
-                const isSelected = selected.includes(slot)
-                return (
-                  <TouchableOpacity
-                    key={slot}
-                    onPress={() => toggle(slot)}
-                    activeOpacity={0.85}
-                    style={{
-                      paddingVertical: kolmiSpace.md,
-                      paddingHorizontal: kolmiSpace.md,
-                      borderRadius: kolmiRadius.lg,
-                      borderWidth: isSelected ? 1.5 : 1,
-                      borderColor: isSelected ? kolmiColors.accent : kolmiColors.outline,
-                      backgroundColor: isSelected ? '#FBEFEF' : '#FAF8F5',
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontFamily: kolmiFonts.uiMedium,
-                        fontSize: 16,
-                        color: kolmiColors.text,
-                      }}
-                    >
-                      {slot}
-                    </Text>
-                    <View
-                      style={{
-                        width: 22,
-                        height: 22,
-                        borderRadius: 11,
-                        borderWidth: 1.5,
-                        borderColor: isSelected ? kolmiColors.accent : kolmiColors.outline,
-                        backgroundColor: isSelected ? kolmiColors.accent : 'transparent',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      {isSelected && (
-                        <Svg width={11} height={9} viewBox="0 0 11 9" fill="none">
-                          <Path
-                            d="M1 4.5L4 7.5L10 1.5"
-                            stroke={kolmiColors.white}
-                            strokeWidth={1.8}
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </Svg>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                )
-              })}
+              {SLOT_OPTIONS.map((slot) => (
+                <SlotButton
+                  key={slot}
+                  label={slot}
+                  isSelected={selected.includes(slot)}
+                  onPress={() => toggle(slot)}
+                />
+              ))}
             </View>
 
             <Text
@@ -378,5 +342,123 @@ export default function MeetingScheduleScreen() {
         )}
       </SafeAreaView>
     </View>
+  )
+}
+
+type SlotButtonProps = {
+  label: string
+  isSelected: boolean
+  onPress: () => void
+}
+
+function SlotButton({ label, isSelected, onPress }: SlotButtonProps) {
+  const progress = useSharedValue(isSelected ? 1 : 0)
+  const scale = useSharedValue(1)
+  const isFirstRender = useRef(true)
+
+  useEffect(() => {
+    progress.value = withTiming(isSelected ? 1 : 0, {
+      duration: 220,
+      easing: kolmiMotion.easing.soft,
+    })
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
+    scale.value = withSequence(
+      withTiming(0.97, { duration: 90, easing: kolmiMotion.easing.snappy }),
+      withTiming(1, { duration: 220, easing: kolmiMotion.easing.soft }),
+    )
+  }, [isSelected, progress, scale])
+
+  const containerStyle = useAnimatedStyle(() => ({
+    borderColor: interpolateColor(
+      progress.value,
+      [0, 1],
+      [kolmiColors.outline, kolmiColors.accent],
+    ),
+    backgroundColor: interpolateColor(
+      progress.value,
+      [0, 1],
+      [SLOT_BG_OFF, SLOT_BG_ON],
+    ),
+    borderWidth: 1 + progress.value * 0.5,
+    transform: [{ scale: scale.value }],
+  }))
+
+  const checkboxStyle = useAnimatedStyle(() => ({
+    borderColor: interpolateColor(
+      progress.value,
+      [0, 1],
+      [kolmiColors.outline, kolmiColors.accent],
+    ),
+    backgroundColor: interpolateColor(
+      progress.value,
+      [0, 1],
+      ['rgba(139,26,26,0)', kolmiColors.accent],
+    ),
+  }))
+
+  const checkmarkStyle = useAnimatedStyle(() => ({
+    opacity: progress.value,
+    transform: [{ scale: 0.6 + progress.value * 0.4 }],
+  }))
+
+  return (
+    <Animated.View
+      style={[
+        {
+          borderRadius: kolmiRadius.lg,
+        },
+        containerStyle,
+      ]}
+    >
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.85}
+        style={{
+          paddingVertical: kolmiSpace.md,
+          paddingHorizontal: kolmiSpace.md,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <Text
+          style={{
+            fontFamily: kolmiFonts.uiMedium,
+            fontSize: 16,
+            color: kolmiColors.text,
+          }}
+        >
+          {label}
+        </Text>
+        <Animated.View
+          style={[
+            {
+              width: 22,
+              height: 22,
+              borderRadius: 11,
+              borderWidth: 1.5,
+              alignItems: 'center',
+              justifyContent: 'center',
+            },
+            checkboxStyle,
+          ]}
+        >
+          <Animated.View style={checkmarkStyle}>
+            <Svg width={11} height={9} viewBox="0 0 11 9" fill="none">
+              <Path
+                d="M1 4.5L4 7.5L10 1.5"
+                stroke={kolmiColors.white}
+                strokeWidth={1.8}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </Svg>
+          </Animated.View>
+        </Animated.View>
+      </TouchableOpacity>
+    </Animated.View>
   )
 }
