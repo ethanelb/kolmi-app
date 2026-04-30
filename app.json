@@ -16,8 +16,8 @@
     "ios": {
       "supportsTablet": false,
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Kolmi a besoin du micro pour envoyer des messages vocaux.",
-        "NSPhotoLibraryUsageDescription": "Kolmi a besoin d'accéder à tes photos pour ton profil."
+        "NSMicrophoneUsageDescription": "Kolmi a besoin du micro pour enregistrer ta présentation vocale lors de l'inscription.",
+        "NSPhotoLibraryUsageDescription": "Kolmi a besoin d'accéder à tes photos pour les ajouter à ton profil."
       },
       "bundleIdentifier": "com.anonymous.kolmi-app"
     },
