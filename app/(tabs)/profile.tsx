@@ -370,41 +370,66 @@ function SkeletonBlock({
   height: number
   radius?: number
 }) {
-  const opacity = useSharedValue(0.55)
+  const [layoutWidth, setLayoutWidth] = useState(0)
+  const progress = useSharedValue(-1)
+
   useEffect(() => {
-    opacity.value = withRepeat(
+    if (layoutWidth === 0) return
+    progress.value = -1
+    progress.value = withRepeat(
       withTiming(1, {
-        duration: 1100,
+        duration: 1400,
         easing: Easing.inOut(Easing.ease),
       }),
       -1,
-      true,
+      false,
     )
-  }, [opacity])
-  const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.value }))
+  }, [layoutWidth, progress])
+
+  const shimmerStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: progress.value * layoutWidth }],
+  }))
+
   return (
-    <Animated.View
-      style={[
-        {
-          width,
-          height,
-          borderRadius: radius,
-          overflow: 'hidden',
-        },
-        animatedStyle,
-      ]}
+    <View
+      onLayout={(e) => {
+        const next = e.nativeEvent.layout.width
+        if (next !== layoutWidth) setLayoutWidth(next)
+      }}
+      style={{
+        width,
+        height,
+        borderRadius: radius,
+        overflow: 'hidden',
+        backgroundColor: 'rgba(22,19,15,0.07)',
+      }}
     >
-      <LinearGradient
-        colors={[
-          'rgba(22,19,15,0.05)',
-          'rgba(22,19,15,0.11)',
-          'rgba(22,19,15,0.05)',
-        ]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={{ flex: 1 }}
-      />
-    </Animated.View>
+      {layoutWidth > 0 && (
+        <Animated.View
+          style={[
+            {
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              left: 0,
+              width: layoutWidth,
+            },
+            shimmerStyle,
+          ]}
+        >
+          <LinearGradient
+            colors={[
+              'rgba(250,248,245,0)',
+              'rgba(250,248,245,0.55)',
+              'rgba(250,248,245,0)',
+            ]}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={{ flex: 1 }}
+          />
+        </Animated.View>
+      )}
+    </View>
   )
 }
 
