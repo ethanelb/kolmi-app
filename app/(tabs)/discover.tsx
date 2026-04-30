@@ -160,12 +160,14 @@ export default function DiscoverScreen() {
               style={{ gap: kolmiSpace.sm }}
             >
               <Text
+                numberOfLines={2}
                 style={{
                   fontFamily: kolmiFonts.uiSemiBold,
                   fontSize: 11,
                   color: kolmiColors.textSecondary,
                   textTransform: 'uppercase',
                   letterSpacing: 1.6,
+                  flexShrink: 1,
                 }}
               >
                 {section.title}
@@ -382,12 +384,14 @@ function DiscoverSectionSkeleton({
       style={{ gap: kolmiSpace.sm }}
     >
       <Text
+        numberOfLines={2}
         style={{
           fontFamily: kolmiFonts.uiSemiBold,
           fontSize: 11,
           color: kolmiColors.textSecondary,
           textTransform: 'uppercase',
           letterSpacing: 1.6,
+          flexShrink: 1,
         }}
       >
         {title}
