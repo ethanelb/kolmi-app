@@ -28,6 +28,7 @@ import type { Meeting } from '@/lib/kolmi/types'
 
 const SLOT_BG_OFF = '#FAF8F5'
 const SLOT_BG_ON = '#FBEFEF'
+const SLOT_BG_FLASH = '#F0CFCF'
 
 const AnimatedSvg = Animated.createAnimatedComponent(Svg)
 
@@ -356,7 +357,9 @@ type SlotButtonProps = {
 function SlotButton({ label, isSelected, onPress }: SlotButtonProps) {
   const progress = useSharedValue(isSelected ? 1 : 0)
   const scale = useSharedValue(1)
+  const flash = useSharedValue(0)
   const isFirstRender = useRef(true)
+  const wasSelected = useRef(isSelected)
 
   useEffect(() => {
     progress.value = withTiming(isSelected ? 1 : 0, {
@@ -365,28 +368,52 @@ function SlotButton({ label, isSelected, onPress }: SlotButtonProps) {
     })
     if (isFirstRender.current) {
       isFirstRender.current = false
+      wasSelected.current = isSelected
       return
     }
-    scale.value = withSequence(
-      withTiming(0.97, { duration: 90, easing: kolmiMotion.easing.snappy }),
-      withTiming(1, { duration: 220, easing: kolmiMotion.easing.soft }),
-    )
-  }, [isSelected, progress, scale])
+    if (isSelected && !wasSelected.current) {
+      // Sélection : dip → léger overshoot → settle, avec flash de fond
+      // pour un feedback "pop" plus immédiat et satisfaisant.
+      scale.value = withSequence(
+        withTiming(0.95, { duration: 90, easing: kolmiMotion.easing.snappy }),
+        withTiming(1.04, { duration: 150, easing: kolmiMotion.easing.snappy }),
+        withTiming(1, { duration: 200, easing: kolmiMotion.easing.soft }),
+      )
+      flash.value = withSequence(
+        withTiming(1, { duration: 110, easing: kolmiMotion.easing.snappy }),
+        withTiming(0, { duration: 360, easing: kolmiMotion.easing.soft }),
+      )
+    } else {
+      // Désélection : dip plus discret pour rester subtil.
+      scale.value = withSequence(
+        withTiming(0.97, { duration: 90, easing: kolmiMotion.easing.snappy }),
+        withTiming(1, { duration: 240, easing: kolmiMotion.easing.soft }),
+      )
+    }
+    wasSelected.current = isSelected
+  }, [isSelected, progress, scale, flash])
 
-  const containerStyle = useAnimatedStyle(() => ({
-    borderColor: interpolateColor(
-      progress.value,
-      [0, 1],
-      [kolmiColors.outline, kolmiColors.accent],
-    ),
-    backgroundColor: interpolateColor(
+  const containerStyle = useAnimatedStyle(() => {
+    const baseBg = interpolateColor(
       progress.value,
       [0, 1],
       [SLOT_BG_OFF, SLOT_BG_ON],
-    ),
-    borderWidth: 1 + progress.value * 0.5,
-    transform: [{ scale: scale.value }],
-  }))
+    )
+    return {
+      borderColor: interpolateColor(
+        progress.value,
+        [0, 1],
+        [kolmiColors.outline, kolmiColors.accent],
+      ),
+      backgroundColor: interpolateColor(
+        flash.value,
+        [0, 1],
+        [baseBg, SLOT_BG_FLASH],
+      ),
+      borderWidth: 1 + progress.value * 0.5,
+      transform: [{ scale: scale.value }],
+    }
+  })
 
   const checkboxStyle = useAnimatedStyle(() => ({
     borderColor: interpolateColor(
