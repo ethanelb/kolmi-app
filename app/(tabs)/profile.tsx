@@ -266,6 +266,10 @@ export default function ProfileTabScreen() {
               </Text>
             ) : null}
             <ActionRow
+              label="Modifier mes photos"
+              onPress={() => router.push('/profile/edit-photos')}
+            />
+            <ActionRow
               label="Modifier ma date de naissance"
               onPress={() => router.push('/profile/edit-birthday')}
             />

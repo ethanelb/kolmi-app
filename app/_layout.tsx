@@ -130,6 +130,7 @@ export default function RootLayout() {
         <Stack.Screen name="profile/edit-gender" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="profile/edit-height" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="profile/edit-orientation" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="profile/edit-photos" options={{ animation: 'slide_from_right' }} />
       </Stack>
     </GestureHandlerRootView>
   )
