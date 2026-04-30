@@ -1,7 +1,16 @@
 import React, { useEffect, useState } from 'react'
 import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native'
-import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated'
+import Animated, {
+  Easing,
+  FadeIn,
+  FadeInUp,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { LinearGradient } from 'expo-linear-gradient'
 import { useFocusEffect, useRouter } from 'expo-router'
 import {
   kolmiColors,
@@ -31,12 +40,20 @@ export default function ProfileTabScreen() {
   const [dna, setDna] = useState<KolmiDnaResult | null>(null)
   const [prefs, setPrefs] = useState<KolmiPreferences | null>(null)
   const [tokens, setTokensState] = useState<number>(0)
+  const [isLoading, setIsLoading] = useState<boolean>(true)
 
-  const refresh = React.useCallback(() => {
-    getKolmiProfile().then(setProfile)
-    getKolmiDnaResult().then(setDna)
-    getKolmiPreferences().then(setPrefs)
-    getTokens().then(setTokensState)
+  const refresh = React.useCallback(async () => {
+    const [nextProfile, nextDna, nextPrefs, nextTokens] = await Promise.all([
+      getKolmiProfile(),
+      getKolmiDnaResult(),
+      getKolmiPreferences(),
+      getTokens(),
+    ])
+    setProfile(nextProfile)
+    setDna(nextDna)
+    setPrefs(nextPrefs)
+    setTokensState(nextTokens)
+    setIsLoading(false)
   }, [])
 
   useEffect(() => {
@@ -123,6 +140,23 @@ export default function ProfileTabScreen() {
             </Text>
           </View>
 
+          {isLoading ? (
+            <>
+              <SectionSkeleton title="Ma Maison" index={0} variant="dna" />
+              <SectionSkeleton
+                title="Tokens de rencontre"
+                index={1}
+                variant="tokens"
+              />
+              <SectionSkeleton title="Mon profil" index={2} variant="profile" />
+              <SectionSkeleton
+                title="Mes préférences"
+                index={3}
+                variant="prefs"
+              />
+            </>
+          ) : (
+            <>
           {/* Maison ADN */}
           {dna && (
             <Section title="Ma Maison" index={0}>
@@ -255,6 +289,8 @@ export default function ProfileTabScreen() {
             )}
             <ActionRow label="Modifier mes préférences (bientôt)" onPress={() => {}} disabled />
           </Section>
+            </>
+          )}
 
           {/* Compte */}
           <Section title="Compte" index={4}>
@@ -320,6 +356,132 @@ function Section({
         }}
       >
         {children}
+      </View>
+    </Animated.View>
+  )
+}
+
+function SkeletonBlock({
+  width,
+  height,
+  radius = 6,
+}: {
+  width: number | `${number}%`
+  height: number
+  radius?: number
+}) {
+  const opacity = useSharedValue(0.55)
+  useEffect(() => {
+    opacity.value = withRepeat(
+      withTiming(1, {
+        duration: 1100,
+        easing: Easing.inOut(Easing.ease),
+      }),
+      -1,
+      true,
+    )
+  }, [opacity])
+  const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.value }))
+  return (
+    <Animated.View
+      style={[
+        {
+          width,
+          height,
+          borderRadius: radius,
+          overflow: 'hidden',
+        },
+        animatedStyle,
+      ]}
+    >
+      <LinearGradient
+        colors={[
+          'rgba(22,19,15,0.05)',
+          'rgba(22,19,15,0.11)',
+          'rgba(22,19,15,0.05)',
+        ]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={{ flex: 1 }}
+      />
+    </Animated.View>
+  )
+}
+
+function SectionSkeleton({
+  title,
+  index = 0,
+  variant,
+}: {
+  title: string
+  index?: number
+  variant: 'dna' | 'tokens' | 'profile' | 'prefs'
+}) {
+  return (
+    <Animated.View
+      entering={FadeIn.delay(staggerDelay(index, 60))
+        .duration(kolmiMotion.duration.md)
+        .easing(kolmiMotion.easing.soft)}
+      style={{ gap: kolmiSpace.sm }}
+    >
+      <Text
+        style={{
+          fontFamily: kolmiFonts.uiSemiBold,
+          fontSize: 11,
+          color: kolmiColors.textSecondary,
+          textTransform: 'uppercase',
+          letterSpacing: 1.6,
+        }}
+      >
+        {title}
+      </Text>
+      <View
+        style={{
+          padding: kolmiSpace.md,
+          borderRadius: kolmiRadius.lg,
+          borderWidth: 1,
+          borderColor: 'rgba(22,19,15,0.12)',
+          backgroundColor: '#FAF8F5',
+          gap: kolmiSpace.sm,
+        }}
+      >
+        {variant === 'dna' && (
+          <>
+            <SkeletonBlock width="60%" height={26} radius={6} />
+            <SkeletonBlock width="100%" height={14} radius={4} />
+            <SkeletonBlock width="85%" height={14} radius={4} />
+            <SkeletonBlock width="100%" height={44} radius={kolmiRadius.pill} />
+            <SkeletonBlock width="100%" height={44} radius={kolmiRadius.pill} />
+          </>
+        )}
+        {variant === 'tokens' && (
+          <>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 10,
+              }}
+            >
+              <SkeletonBlock width={56} height={36} radius={6} />
+              <SkeletonBlock width={140} height={14} radius={4} />
+            </View>
+            <SkeletonBlock width="90%" height={13} radius={4} />
+            <SkeletonBlock width="100%" height={44} radius={kolmiRadius.pill} />
+          </>
+        )}
+        {variant === 'profile' && (
+          <>
+            <SkeletonBlock width="75%" height={14} radius={4} />
+            <SkeletonBlock width="100%" height={44} radius={kolmiRadius.pill} />
+          </>
+        )}
+        {variant === 'prefs' && (
+          <>
+            <SkeletonBlock width="55%" height={14} radius={4} />
+            <SkeletonBlock width="100%" height={44} radius={kolmiRadius.pill} />
+          </>
+        )}
       </View>
     </Animated.View>
   )
