@@ -9,6 +9,7 @@ const PROFILE_KEY = 'kolmi.profile'
 const TOKENS_KEY = 'kolmi.tokens'
 const PASSED_PROFILES_KEY = 'kolmi.passed_profiles'
 const MEETINGS_KEY = 'kolmi.meetings'
+const PUSH_TOKEN_KEY = 'kolmi.push_token'
 
 export type KolmiProgress = {
   hasCompletedBaseOnboarding: boolean
@@ -220,6 +221,30 @@ export async function deleteMeeting(id: string) {
   await setJson(MEETINGS_KEY, next)
 }
 
+// ─── Push notifications token ────────────────────────────────────────
+
+export async function savePushToken(token: string | null): Promise<void> {
+  try {
+    if (token === null) {
+      await AsyncStorage.removeItem(PUSH_TOKEN_KEY)
+      return
+    }
+    await AsyncStorage.setItem(PUSH_TOKEN_KEY, token)
+    // TODO Supabase sync later (push tokens must be associated to user_id server-side)
+  } catch (err) {
+    console.warn('[kolmi] savePushToken failed', err)
+  }
+}
+
+export async function getPushToken(): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(PUSH_TOKEN_KEY)
+  } catch (err) {
+    console.warn('[kolmi] getPushToken failed', err)
+    return null
+  }
+}
+
 export async function resetKolmiState() {
   await AsyncStorage.multiRemove([
     PROGRESS_KEY,
@@ -230,5 +255,6 @@ export async function resetKolmiState() {
     TOKENS_KEY,
     PASSED_PROFILES_KEY,
     MEETINGS_KEY,
+    PUSH_TOKEN_KEY,
   ])
 }

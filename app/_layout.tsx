@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Stack } from 'expo-router'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { StatusBar } from 'expo-status-bar'
@@ -19,6 +20,8 @@ import {
 } from '@expo-google-fonts/fraunces'
 import { View } from 'react-native'
 import { kolmiColors } from '@/constants/kolmiTheme'
+import { registerForPushNotificationsAsync } from '@/lib/kolmi/notifications'
+import { getPushToken, savePushToken } from '@/lib/kolmi/storage'
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -32,6 +35,24 @@ export default function RootLayout() {
     Fraunces_400Regular,
     Fraunces_500Medium,
   })
+
+  // Demande de permission push + persistance du token au boot. On ne bloque
+  // jamais le rendu là-dessus : si la permission est refusée ou si l'enregistrement
+  // échoue, l'app fonctionne normalement, juste sans notifications.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const token = await registerForPushNotificationsAsync()
+      if (cancelled) return
+      const previous = await getPushToken()
+      if (token !== previous) {
+        await savePushToken(token)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   if (!fontsLoaded) {
     return <View style={{ flex: 1, backgroundColor: kolmiColors.bg }} />
