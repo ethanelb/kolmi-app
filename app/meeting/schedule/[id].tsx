@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 import Svg, { Path } from 'react-native-svg'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -51,6 +51,7 @@ export default function MeetingScheduleScreen() {
   const [loaded, setLoaded] = useState(false)
   const [selected, setSelected] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -112,8 +113,9 @@ export default function MeetingScheduleScreen() {
   const remainingToMin = Math.max(0, MIN_SLOTS - selected.length)
 
   const onSubmit = async () => {
-    if (!meeting || submitting || !canSubmit) return
+    if (!meeting || submitting || isProcessing || !canSubmit) return
     setSubmitting(true)
+    setIsProcessing(true)
 
     // Re-check status au moment du submit pour éviter qu'un meeting
     // déjà confirmé sur un autre device ou refresh ne soit re-confirmé.
@@ -127,6 +129,7 @@ export default function MeetingScheduleScreen() {
         'Une erreur est survenue. Réessayez dans un instant.',
       )
       setSubmitting(false)
+      setIsProcessing(false)
       return
     }
     const current = stored ?? meeting
@@ -149,6 +152,7 @@ export default function MeetingScheduleScreen() {
         ],
       )
       setSubmitting(false)
+      setIsProcessing(false)
       return
     }
 
@@ -164,14 +168,25 @@ export default function MeetingScheduleScreen() {
       venueId,
     }
 
+    // Délai simulé pour que l'utilisateur sente le matchmaker "réfléchir"
+    // avant la confirmation, plutôt qu'un saut instantané vers /confirm.
     try {
-      if (!stored) {
-        // Promote a seed mock into local storage with the patched fields.
-        await saveMeeting({ ...meeting, ...patch })
-      } else {
-        await updateMeeting(meeting.id, patch)
-      }
-      router.replace(`/meeting/confirm/${meeting.id}`)
+      await new Promise<void>((resolve, reject) => {
+        setTimeout(async () => {
+          try {
+            if (!stored) {
+              // Promote a seed mock into local storage with the patched fields.
+              await saveMeeting({ ...meeting, ...patch })
+            } else {
+              await updateMeeting(meeting.id, patch)
+            }
+            router.replace(`/meeting/confirm/${meeting.id}`)
+            resolve()
+          } catch (err) {
+            reject(err)
+          }
+        }, 2500)
+      })
     } catch (err) {
       console.warn('[kolmi] schedule submit failed', err)
       Alert.alert(
@@ -180,6 +195,7 @@ export default function MeetingScheduleScreen() {
       )
     } finally {
       setSubmitting(false)
+      setIsProcessing(false)
     }
   }
 
@@ -319,17 +335,25 @@ export default function MeetingScheduleScreen() {
             <TouchableOpacity
               onPress={onSubmit}
               activeOpacity={0.85}
-              disabled={!canSubmit || submitting}
+              disabled={!canSubmit || submitting || isProcessing}
               style={{
                 marginTop: kolmiSpace.sm,
                 height: 56,
                 borderRadius: kolmiRadius.pill,
                 backgroundColor: canSubmit ? kolmiColors.accent : kolmiColors.surfaceSoft,
+                flexDirection: 'row',
                 alignItems: 'center',
                 justifyContent: 'center',
-                opacity: submitting ? 0.6 : 1,
+                gap: kolmiSpace.xs,
+                opacity: isProcessing ? 0.7 : 1,
               }}
             >
+              {isProcessing && (
+                <ActivityIndicator
+                  size="small"
+                  color={canSubmit ? kolmiColors.white : kolmiColors.textMuted}
+                />
+              )}
               <Text
                 style={{
                   fontFamily: kolmiFonts.uiSemiBold,
@@ -338,7 +362,7 @@ export default function MeetingScheduleScreen() {
                   letterSpacing: 0.2,
                 }}
               >
-                {submitting ? 'Envoi…' : 'Envoyer mes disponibilités'}
+                {isProcessing ? 'Le matchmaker confirme…' : 'Envoyer mes disponibilités'}
               </Text>
             </TouchableOpacity>
           </ScrollView>
