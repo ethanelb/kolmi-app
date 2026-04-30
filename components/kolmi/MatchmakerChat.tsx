@@ -170,9 +170,16 @@ export default function MatchmakerChat() {
 
   async function finalize(allAnswers: KolmiAnswer[]) {
     const result = calculateKolmiDna(allAnswers)
-    await saveKolmiDnaResult(result)
-    await saveKolmiProgress({ hasCompletedMatchmaker: true })
-    router.replace('/matchmaker/result')
+    try {
+      await saveKolmiDnaResult(result)
+      await saveKolmiProgress({ hasCompletedMatchmaker: true })
+      router.replace('/matchmaker/result')
+    } catch (err) {
+      console.warn('[kolmi] finalize failed', err)
+      // L'utilisateur peut toujours réessayer en relançant le matchmaker.
+      // On évite de naviguer vers /matchmaker/result si le DNA n'a pas été
+      // persisté — sinon il atterrit sur l'écran "Aucune Maison enregistrée".
+    }
   }
 
   async function handleSelectOption(optionId: string) {

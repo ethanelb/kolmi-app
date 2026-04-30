@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'
 import {
@@ -14,6 +15,7 @@ import { mockMeetings } from '@/data/mockMeetings'
 import { getMeetings } from '@/lib/kolmi/storage'
 import { getSelectedProfileById } from '@/data/mockSelectedProfiles'
 import { KOLMI_DEMO_MODE } from '@/constants/kolmiConfig'
+import { kolmiMotion, staggerDelay } from '@/lib/kolmi/motion'
 import type { Meeting, MeetingStatus } from '@/lib/kolmi/types'
 
 const SECTION_LABELS: Record<'todo' | 'waiting' | 'confirmed' | 'past', string> = {
@@ -183,11 +185,17 @@ export default function DatesScreen() {
             </View>
           )}
 
-          {sectionOrder.map((key) => {
+          {sectionOrder.map((key, sIdx) => {
             const list = buckets[key]
             if (list.length === 0) return null
             return (
-              <View key={key} style={{ gap: kolmiSpace.sm }}>
+              <Animated.View
+                key={key}
+                entering={FadeIn.delay(staggerDelay(sIdx, 100))
+                  .duration(kolmiMotion.duration.lg)
+                  .easing(kolmiMotion.easing.soft)}
+                style={{ gap: kolmiSpace.sm }}
+              >
                 <Text
                   style={{
                     fontFamily: kolmiFonts.uiSemiBold,
@@ -199,15 +207,21 @@ export default function DatesScreen() {
                 >
                   {SECTION_LABELS[key]}
                 </Text>
-                {list.map((m) => (
-                  <MeetingRow
+                {list.map((m, i) => (
+                  <Animated.View
                     key={m.id}
-                    meeting={m}
-                    onSchedule={() => router.push(`/meeting/schedule/${m.id}`)}
-                    onConfirm={() => router.push(`/meeting/confirm/${m.id}`)}
-                  />
+                    entering={FadeInDown.delay(staggerDelay(i, 50))
+                      .duration(kolmiMotion.duration.md)
+                      .easing(kolmiMotion.easing.soft)}
+                  >
+                    <MeetingRow
+                      meeting={m}
+                      onSchedule={() => router.push(`/meeting/schedule/${m.id}`)}
+                      onConfirm={() => router.push(`/meeting/confirm/${m.id}`)}
+                    />
+                  </Animated.View>
                 ))}
-              </View>
+              </Animated.View>
             )
           })}
         </ScrollView>

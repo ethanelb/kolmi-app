@@ -21,11 +21,25 @@ import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import { getSelectedProfileById } from '@/data/mockSelectedProfiles'
 import {
   deleteMeeting,
+  findActiveMeetingForProfile,
   getTokens,
   saveMeeting,
   spendToken,
 } from '@/lib/kolmi/storage'
-import type { Meeting } from '@/lib/kolmi/types'
+import type { Meeting, MeetingStatus } from '@/lib/kolmi/types'
+
+// Quand un meeting non terminal existe déjà pour ce profil, on redirige
+// vers l'écran qui correspond à son état plutôt que de créer un doublon.
+function nextRouteForActive(meeting: Meeting): string {
+  switch (meeting.status as MeetingStatus) {
+    case 'confirmed':
+      return `/meeting/confirm/${meeting.id}`
+    case 'accepted_waiting_slots':
+      return `/meeting/schedule/${meeting.id}`
+    default:
+      return '/(tabs)/dates'
+  }
+}
 
 export default function MeetingRequestScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -84,8 +98,31 @@ export default function MeetingRequestScreen() {
     if (submitting) return
     setSubmitting(true)
 
-    // Pre-check tokens without spending — if zero, push to premium.
-    const balance = await getTokens()
+    // 0. Idempotence : si une demande non-terminale existe déjà pour ce
+    // profil, on n'en crée pas une seconde — on redirige vers son écran.
+    let active: Meeting | null = null
+    try {
+      active = await findActiveMeetingForProfile(profile.id)
+    } catch (err) {
+      console.warn('[kolmi] active meeting lookup failed', err)
+    }
+    if (active) {
+      setSubmitting(false)
+      Alert.alert(
+        'Demande déjà en cours',
+        'Une demande est déjà en cours pour ce profil.',
+        [
+          {
+            text: 'Voir la demande',
+            onPress: () => router.replace(nextRouteForActive(active!)),
+          },
+        ],
+      )
+      return
+    }
+
+    // 1. Pre-check tokens without spending — if zero, push to premium.
+    const balance = await getTokens().catch(() => 0)
     if (balance <= 0) {
       setSubmitting(false)
       Alert.alert(
@@ -102,9 +139,11 @@ export default function MeetingRequestScreen() {
       return
     }
 
-    // V1 local: save the meeting first, then spend the token. If the spend
-    // fails after the meeting is persisted, roll back the meeting so the
-    // user neither pays for nothing nor sees a ghost meeting.
+    // 2. Sauvegarde du meeting puis débit du token. Si quelque chose casse
+    // entre les deux, on rollback le meeting tant que le token n'a pas été
+    // débité. Une fois `tokenDebited=true`, on ne tente plus de rollback
+    // automatique côté client — l'utilisateur est notifié et peut suivre
+    // sa demande dans Rendez-vous.
     // In production this MUST be a server-side transaction.
     const now = new Date().toISOString()
     const meeting: Meeting = {
@@ -113,23 +152,44 @@ export default function MeetingRequestScreen() {
       status: 'waiting_for_other',
       createdAt: now,
     }
+    let tokenDebited = false
 
     try {
       await saveMeeting(meeting)
+
       const spent = await spendToken()
       if (!spent) {
-        await deleteMeeting(meeting.id)
-        throw new Error('Token introuvable au moment du débit.')
+        // Race rarissime : le solde est passé à 0 entre le pre-check et
+        // ici. On rollback le meeting et on signale le manque de token.
+        await deleteMeeting(meeting.id).catch(() => {})
+        Alert.alert(
+          'Plus de tokens',
+          'Votre solde est à zéro. Aucun token n\'a été débité.',
+        )
+        return
       }
+      tokenDebited = true
+
       router.replace('/(tabs)/dates')
     } catch (err) {
       console.warn('[kolmi] meeting request failed', err)
-      // Best-effort rollback if anything fails downstream of save.
-      deleteMeeting(meeting.id).catch(() => {})
-      Alert.alert(
-        'Demande non envoyée',
-        "Une erreur est survenue. Aucun token n'a été débité. Réessayez dans un instant.",
-      )
+      if (!tokenDebited) {
+        // Échec avant débit → on tente de nettoyer le meeting persisté
+        // (best-effort) puis on rassure l'utilisateur.
+        deleteMeeting(meeting.id).catch(() => {})
+        Alert.alert(
+          'Demande non envoyée',
+          "Une erreur est survenue. Aucun token n'a été débité. Réessayez dans un instant.",
+        )
+      } else {
+        // Le token a été débité, le meeting est en base ; seule la
+        // navigation a échoué. Pas de remboursement bricolé : l'utilisateur
+        // retrouve sa demande dans Rendez-vous.
+        Alert.alert(
+          'Demande envoyée',
+          "Le token a été débité, mais l'ouverture de l'écran suivant a échoué. Retrouvez votre demande dans Rendez-vous.",
+        )
+      }
     } finally {
       setSubmitting(false)
     }

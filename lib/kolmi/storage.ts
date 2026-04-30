@@ -75,7 +75,14 @@ export async function getKolmiAnswers(): Promise<KolmiAnswer[]> {
   return getJson<KolmiAnswer[]>(ANSWERS_KEY, [])
 }
 
+// Mutations critiques : on laisse l'erreur AsyncStorage remonter au caller
+// pour que l'UI ne navigue pas comme si tout était OK alors que la donnée
+// n'a pas été persistée.
+
 export async function saveKolmiAnswer(answer: KolmiAnswer) {
+  // Best-effort : appelé à chaque réponse du matchmaker, on évite de
+  // bloquer l'UI si AsyncStorage hiccupe sur une question. Le DNA final
+  // sera recalculé sur l'ensemble des réponses présentes.
   try {
     const current = await getKolmiAnswers()
     const next = current.filter((item) => item.questionId !== answer.questionId)
@@ -88,12 +95,8 @@ export async function saveKolmiAnswer(answer: KolmiAnswer) {
 }
 
 export async function saveKolmiDnaResult(result: KolmiDnaResult) {
-  try {
-    await setJson(DNA_RESULT_KEY, result)
-    // TODO Supabase sync later
-  } catch (err) {
-    console.warn('[kolmi] saveKolmiDnaResult failed', err)
-  }
+  await setJson(DNA_RESULT_KEY, result)
+  // TODO Supabase sync later
 }
 
 export async function getKolmiDnaResult(): Promise<KolmiDnaResult | null> {
@@ -105,22 +108,14 @@ export async function getKolmiProfile(): Promise<KolmiProfile> {
 }
 
 export async function saveKolmiProfile(patch: Partial<KolmiProfile>) {
-  try {
-    const current = await getKolmiProfile()
-    await setJson(PROFILE_KEY, { ...current, ...patch })
-    // TODO Supabase sync later
-  } catch (err) {
-    console.warn('[kolmi] saveKolmiProfile failed', err)
-  }
+  const current = await getKolmiProfile()
+  await setJson(PROFILE_KEY, { ...current, ...patch })
+  // TODO Supabase sync later
 }
 
 export async function saveKolmiPreferences(prefs: KolmiPreferences) {
-  try {
-    await setJson(PREFERENCES_KEY, prefs)
-    // TODO Supabase sync later
-  } catch (err) {
-    console.warn('[kolmi] saveKolmiPreferences failed', err)
-  }
+  await setJson(PREFERENCES_KEY, prefs)
+  // TODO Supabase sync later
 }
 
 export async function getKolmiPreferences(): Promise<KolmiPreferences | null> {
@@ -165,14 +160,10 @@ export async function getPassedProfiles(): Promise<string[]> {
 }
 
 export async function passProfile(profileId: string) {
-  try {
-    const current = await getPassedProfiles()
-    if (current.includes(profileId)) return
-    const next = [...current, profileId]
-    await setJson(PASSED_PROFILES_KEY, next)
-  } catch (err) {
-    console.warn('[kolmi] passProfile failed', err)
-  }
+  const current = await getPassedProfiles()
+  if (current.includes(profileId)) return
+  const next = [...current, profileId]
+  await setJson(PASSED_PROFILES_KEY, next)
 }
 
 // ─── Meetings (request → schedule → confirm) ─────────────────────────
@@ -184,6 +175,30 @@ export async function getMeetings(): Promise<Meeting[]> {
 export async function getMeetingById(id: string): Promise<Meeting | null> {
   const all = await getMeetings()
   return all.find((m) => m.id === id) ?? null
+}
+
+// Statuts considérés terminaux : la rencontre est close, l'utilisateur peut
+// en redemander une autre avec le même profil.
+const TERMINAL_STATUSES: ReadonlyArray<Meeting['status']> = [
+  'completed',
+  'declined',
+  'expired',
+]
+
+export function isTerminalStatus(status: Meeting['status']): boolean {
+  return TERMINAL_STATUSES.includes(status)
+}
+
+// Renvoie le meeting le plus récent et non terminal pour un profil donné,
+// ou null. Sert à empêcher les doublons côté `meeting/request`.
+export async function findActiveMeetingForProfile(
+  profileId: string,
+): Promise<Meeting | null> {
+  const all = await getMeetings()
+  const active = all
+    .filter((m) => m.profileId === profileId && !isTerminalStatus(m.status))
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+  return active[0] ?? null
 }
 
 export async function saveMeeting(meeting: Meeting) {

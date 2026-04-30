@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { ScrollView, View, Text, TouchableOpacity, Image } from 'react-native'
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'
 import {
@@ -12,6 +13,7 @@ import {
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import { mockSelectedProfiles, type SelectedProfile } from '@/data/mockSelectedProfiles'
 import { getPassedProfiles } from '@/lib/kolmi/storage'
+import { kolmiMotion, staggerDelay } from '@/lib/kolmi/motion'
 import { tapMedium } from '@/lib/kolmi/haptics'
 
 type Section = {
@@ -135,8 +137,14 @@ export default function DiscoverScreen() {
             </View>
           )}
 
-          {!allEmpty && sections.map((section) => (
-            <View key={section.id} style={{ gap: kolmiSpace.sm }}>
+          {!allEmpty && sections.map((section, sIdx) => (
+            <Animated.View
+              key={section.id}
+              entering={FadeInDown.delay(staggerDelay(sIdx, 120))
+                .duration(kolmiMotion.duration.lg)
+                .easing(kolmiMotion.easing.soft)}
+              style={{ gap: kolmiSpace.sm }}
+            >
               <Text
                 style={{
                   fontFamily: kolmiFonts.uiSemiBold,
@@ -161,18 +169,24 @@ export default function DiscoverScreen() {
                 </Text>
               ) : (
                 <View style={{ gap: kolmiSpace.md }}>
-                  {section.profiles.map((profile) => (
-                    <DiscoverCard
+                  {section.profiles.map((profile, i) => (
+                    <Animated.View
                       key={`${section.id}-${profile.id}`}
-                      profile={profile}
-                      analyzed={analyzed.has(profile.id)}
-                      onAnalyze={() => handleAnalyze(profile.id)}
-                      onView={() => router.push(`/matches/${profile.id}`)}
-                    />
+                      entering={FadeInDown.delay(staggerDelay(i, 60))
+                        .duration(kolmiMotion.duration.md)
+                        .easing(kolmiMotion.easing.soft)}
+                    >
+                      <DiscoverCard
+                        profile={profile}
+                        analyzed={analyzed.has(profile.id)}
+                        onAnalyze={() => handleAnalyze(profile.id)}
+                        onView={() => router.push(`/matches/${profile.id}`)}
+                      />
+                    </Animated.View>
                   ))}
                 </View>
               )}
-            </View>
+            </Animated.View>
           ))}
         </ScrollView>
       </SafeAreaView>

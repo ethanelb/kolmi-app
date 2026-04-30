@@ -16,6 +16,7 @@ import {
 import SignupHeader from '@/components/kolmi/SignupHeader'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import { getKolmiProfile, saveKolmiProfile } from '@/lib/kolmi/storage'
+import { safePersist } from '@/lib/kolmi/safePersist'
 
 const SIGNUP_TOTAL_STEPS = 11
 const ITEM_HEIGHT = 56
@@ -217,7 +218,10 @@ export default function HeightScreen() {
             style={styles.cta}
             onPress={async () => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-              await saveKolmiProfile({ heightCm: selectedCm })
+              const ok = await safePersist(() =>
+                saveKolmiProfile({ heightCm: selectedCm }),
+              )
+              if (!ok) return
               router.push('/onboarding/lifestyle')
             }}
             activeOpacity={0.85}

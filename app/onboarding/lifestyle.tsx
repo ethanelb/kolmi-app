@@ -13,6 +13,7 @@ import SignupHeader from '@/components/kolmi/SignupHeader'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import { select, tapMedium } from '@/lib/kolmi/haptics'
 import { getKolmiProfile, saveKolmiProfile } from '@/lib/kolmi/storage'
+import { safePersist } from '@/lib/kolmi/safePersist'
 
 const SIGNUP_TOTAL_STEPS = 11
 
@@ -115,11 +116,13 @@ export default function LifestyleScreen() {
           <TouchableOpacity
             style={[styles.cta, !isValid && styles.ctaDisabled]}
             onPress={async () => {
-              if (isValid) {
-                tapMedium()
-                await saveKolmiProfile({ lifestyle: answers })
-                router.push('/onboarding/photos')
-              }
+              if (!isValid) return
+              tapMedium()
+              const ok = await safePersist(() =>
+                saveKolmiProfile({ lifestyle: answers }),
+              )
+              if (!ok) return
+              router.push('/onboarding/photos')
             }}
             activeOpacity={isValid ? 0.85 : 1}
           >

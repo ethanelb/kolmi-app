@@ -17,6 +17,7 @@ import {
   saveKolmiPreferences,
   saveKolmiProgress,
 } from '@/lib/kolmi/storage'
+import { safePersist } from '@/lib/kolmi/safePersist'
 import { select, success } from '@/lib/kolmi/haptics'
 
 const SIGNUP_TOTAL_STEPS = 11
@@ -40,8 +41,11 @@ export default function PreferencesScreen() {
 
   const handleFinish = async () => {
     success()
-    await saveKolmiPreferences({ minAge, maxAge, distance })
-    await saveKolmiProgress({ hasCompletedBaseOnboarding: true })
+    const ok = await safePersist(async () => {
+      await saveKolmiPreferences({ minAge, maxAge, distance })
+      await saveKolmiProgress({ hasCompletedBaseOnboarding: true })
+    })
+    if (!ok) return
     router.replace('/matchmaker')
   }
 

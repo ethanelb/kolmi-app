@@ -12,7 +12,7 @@ import {
 } from '@/constants/kolmiTheme'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import { mockMeetings } from '@/data/mockMeetings'
-import { mockVenues, getVenueById } from '@/data/mockVenues'
+import { getVenueById } from '@/data/mockVenues'
 import { getSelectedProfileById } from '@/data/mockSelectedProfiles'
 import { getMeetingById } from '@/lib/kolmi/storage'
 import { KOLMI_DEMO_MODE } from '@/constants/kolmiConfig'
@@ -48,9 +48,12 @@ export default function MeetingConfirmScreen() {
     [meeting],
   )
 
+  // Pas de venue fallback : si le meeting n'a pas de `venueId` (ou un id
+  // qui ne matche aucun lieu mock), on affiche un placeholder honnête
+  // plutôt qu'un faux café par défaut.
   const venue = useMemo(() => {
-    if (!meeting?.venueId) return mockVenues[0] ?? null
-    return getVenueById(meeting.venueId) ?? mockVenues[0] ?? null
+    if (!meeting?.venueId) return null
+    return getVenueById(meeting.venueId) ?? null
   }, [meeting])
 
   return (
@@ -174,7 +177,7 @@ export default function MeetingConfirmScreen() {
               />
             )}
 
-            {venue && (
+            {venue ? (
               <View
                 style={{
                   borderWidth: 1,
@@ -226,6 +229,40 @@ export default function MeetingConfirmScreen() {
                   }}
                 >
                   {venue.ambiance}
+                </Text>
+              </View>
+            ) : (
+              <View
+                style={{
+                  borderWidth: 1,
+                  borderStyle: 'dashed',
+                  borderColor: kolmiColors.outline,
+                  backgroundColor: 'transparent',
+                  borderRadius: kolmiRadius.lg,
+                  padding: kolmiSpace.md,
+                  gap: kolmiSpace.xs,
+                }}
+              >
+                <Text
+                  style={{
+                    fontFamily: kolmiFonts.uiSemiBold,
+                    fontSize: 11,
+                    color: kolmiColors.textSecondary,
+                    textTransform: 'uppercase',
+                    letterSpacing: 1.6,
+                  }}
+                >
+                  Lieu
+                </Text>
+                <Text
+                  style={{
+                    fontFamily: kolmiFonts.serifItalic,
+                    fontSize: 16,
+                    color: kolmiColors.textBody,
+                    lineHeight: 22,
+                  }}
+                >
+                  Lieu en cours de confirmation. Le matchmaker vous le communiquera dès qu&apos;il sera fixé.
                 </Text>
               </View>
             )}

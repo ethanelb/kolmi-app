@@ -16,6 +16,7 @@ import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import { useAudioRecorder } from '@/hooks/useAudioRecorder'
 import { formatDuration } from '@/lib/utils'
 import { saveKolmiProfile } from '@/lib/kolmi/storage'
+import { safePersist } from '@/lib/kolmi/safePersist'
 
 const SIGNUP_TOTAL_STEPS = 11
 
@@ -195,7 +196,12 @@ export default function VocalScreen() {
             style={styles.cta}
             onPress={async () => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-              if (recorded) await saveKolmiProfile({ hasVocalIntro: true })
+              if (recorded) {
+                const ok = await safePersist(() =>
+                  saveKolmiProfile({ hasVocalIntro: true }),
+                )
+                if (!ok) return
+              }
               router.push('/onboarding/preferences')
             }}
             activeOpacity={0.85}

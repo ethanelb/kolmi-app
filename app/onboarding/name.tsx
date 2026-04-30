@@ -23,6 +23,7 @@ import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import EmptyKeyboardAccessory, { EMPTY_ACCESSORY_ID } from '@/components/kolmi/EmptyKeyboardAccessory'
 import { tapMedium } from '@/lib/kolmi/haptics'
 import { getKolmiProfile, saveKolmiProfile } from '@/lib/kolmi/storage'
+import { safePersist } from '@/lib/kolmi/safePersist'
 
 const SIGNUP_TOTAL_STEPS = 11
 
@@ -93,11 +94,13 @@ export default function NameScreen() {
             <TouchableOpacity
               style={[styles.cta, !isValid && styles.ctaDisabled]}
               onPress={async () => {
-                if (isValid) {
-                  tapMedium()
-                  await saveKolmiProfile({ firstName: name.trim() })
-                  router.push('/onboarding/gender')
-                }
+                if (!isValid) return
+                tapMedium()
+                const ok = await safePersist(() =>
+                  saveKolmiProfile({ firstName: name.trim() }),
+                )
+                if (!ok) return
+                router.push('/onboarding/gender')
               }}
               activeOpacity={isValid ? 0.85 : 1}
             >

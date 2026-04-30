@@ -14,6 +14,7 @@ import SignupHeader from '@/components/kolmi/SignupHeader'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import { tapLight, tapMedium } from '@/lib/kolmi/haptics'
 import { getKolmiProfile, saveKolmiProfile } from '@/lib/kolmi/storage'
+import { safePersist } from '@/lib/kolmi/safePersist'
 
 const SIGNUP_TOTAL_STEPS = 11
 const { width } = Dimensions.get('window')
@@ -141,13 +142,15 @@ export default function PhotosScreen() {
           <TouchableOpacity
             style={[styles.cta, !isValid && styles.ctaDisabled]}
             onPress={async () => {
-              if (isValid) {
-                tapMedium()
-                await saveKolmiProfile({
+              if (!isValid) return
+              tapMedium()
+              const ok = await safePersist(() =>
+                saveKolmiProfile({
                   photoUrls: photos.filter((p): p is string => Boolean(p)),
-                })
-                router.push('/onboarding/vocal')
-              }
+                }),
+              )
+              if (!ok) return
+              router.push('/onboarding/vocal')
             }}
             activeOpacity={isValid ? 0.85 : 1}
           >

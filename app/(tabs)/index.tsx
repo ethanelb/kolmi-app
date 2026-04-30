@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { ScrollView, View, Text, TouchableOpacity } from 'react-native'
+import Animated, { FadeIn, FadeInDown, FadeInUp } from 'react-native-reanimated'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'
 import {
@@ -15,6 +16,8 @@ import MatchmakerGreeting from '@/components/kolmi/MatchmakerGreeting'
 import SelectedProfileCard from '@/components/kolmi/SelectedProfileCard'
 import { mockSelectedProfiles } from '@/data/mockSelectedProfiles'
 import { getPassedProfiles, passProfile } from '@/lib/kolmi/storage'
+import { safePersist } from '@/lib/kolmi/safePersist'
+import { kolmiMotion, staggerDelay } from '@/lib/kolmi/motion'
 import { tapMedium } from '@/lib/kolmi/haptics'
 
 export default function SelectionScreen() {
@@ -41,7 +44,8 @@ export default function SelectionScreen() {
 
   async function handlePass(profileId: string) {
     tapMedium()
-    await passProfile(profileId)
+    const ok = await safePersist(() => passProfile(profileId))
+    if (!ok) return
     setPassed((prev) => (prev.includes(profileId) ? prev : [...prev, profileId]))
   }
 
@@ -49,7 +53,8 @@ export default function SelectionScreen() {
     <View style={{ flex: 1, backgroundColor: kolmiColors.bg }}>
       <GrainOverlay />
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-        <View
+        <Animated.View
+          entering={FadeIn.duration(kolmiMotion.duration.lg).easing(kolmiMotion.easing.soft)}
           style={{
             flexDirection: 'row',
             justifyContent: 'space-between',
@@ -81,7 +86,7 @@ export default function SelectionScreen() {
               Premium
             </Text>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
 
         <ScrollView
           contentContainerStyle={{
@@ -92,7 +97,8 @@ export default function SelectionScreen() {
           }}
           showsVerticalScrollIndicator={false}
         >
-          <View
+          <Animated.View
+            entering={FadeIn.delay(40).duration(kolmiMotion.duration.lg).easing(kolmiMotion.easing.soft)}
             style={{
               alignSelf: 'flex-start',
               borderRadius: 999,
@@ -113,14 +119,24 @@ export default function SelectionScreen() {
             >
               Sélection du jour
             </Text>
-          </View>
+          </Animated.View>
 
-          <MatchmakerGreeting count={visible.length} />
+          <Animated.View
+            entering={FadeInUp.delay(120).duration(kolmiMotion.duration.lg).easing(kolmiMotion.easing.soft)}
+          >
+            <MatchmakerGreeting count={visible.length} />
+          </Animated.View>
 
           {visible.length > 0 ? (
             <View style={{ gap: kolmiSpace.md, marginTop: kolmiSpace.sm }}>
-              {visible.map((profile) => (
-                <View key={profile.id} style={{ gap: kolmiSpace.xs }}>
+              {visible.map((profile, i) => (
+                <Animated.View
+                  key={profile.id}
+                  entering={FadeInDown.delay(staggerDelay(i, 200))
+                    .duration(kolmiMotion.duration.lg)
+                    .easing(kolmiMotion.easing.soft)}
+                  style={{ gap: kolmiSpace.xs }}
+                >
                   <SelectedProfileCard
                     profile={profile}
                     onPress={() => router.push(`/matches/${profile.id}`)}
@@ -173,7 +189,7 @@ export default function SelectionScreen() {
                       </Text>
                     </TouchableOpacity>
                   </View>
-                </View>
+                </Animated.View>
               ))}
             </View>
           ) : (

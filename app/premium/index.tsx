@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import Animated, { FadeIn, FadeInDown, FadeInUp } from 'react-native-reanimated'
 import Svg, { Path } from 'react-native-svg'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
@@ -12,6 +13,7 @@ import {
 } from '@/constants/kolmiTheme'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import { addTokens, getTokens } from '@/lib/kolmi/storage'
+import { kolmiMotion, staggerDelay } from '@/lib/kolmi/motion'
 
 type Pack = {
   id: string
@@ -178,9 +180,12 @@ export default function PremiumScreen() {
           </View>
 
           <View style={{ gap: kolmiSpace.md, marginTop: kolmiSpace.sm }}>
-            {packs.map((pack) => (
-              <View
+            {packs.map((pack, i) => (
+              <Animated.View
                 key={pack.id}
+                entering={FadeInDown.delay(staggerDelay(i, 200))
+                  .duration(kolmiMotion.duration.lg)
+                  .easing(kolmiMotion.easing.soft)}
                 style={{
                   borderWidth: pack.highlight ? 1.5 : 1,
                   borderColor: pack.highlight
@@ -301,7 +306,7 @@ export default function PremiumScreen() {
                       : `Créditer ${pack.tokens} tokens de test`}
                   </Text>
                 </TouchableOpacity>
-              </View>
+              </Animated.View>
             ))}
           </View>
 

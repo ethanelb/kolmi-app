@@ -28,6 +28,7 @@ import {
   saveKolmiProfile,
   type KolmiProfile,
 } from '@/lib/kolmi/storage'
+import { safePersist } from '@/lib/kolmi/safePersist'
 import { select, success, tapMedium } from '@/lib/kolmi/haptics'
 
 const { width } = Dimensions.get('window')
@@ -130,11 +131,14 @@ export default function ProfileScreen() {
   const handleSave = async () => {
     if (!isValid) return
     tapMedium()
-    await saveKolmiProfile({
-      firstName: firstName.trim(),
-      photoUrls: photos.filter((p): p is string => Boolean(p)),
-      lifestyle,
-    })
+    const ok = await safePersist(() =>
+      saveKolmiProfile({
+        firstName: firstName.trim(),
+        photoUrls: photos.filter((p): p is string => Boolean(p)),
+        lifestyle,
+      }),
+    )
+    if (!ok) return
     success()
     setDirty(false)
     router.back()

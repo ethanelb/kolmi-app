@@ -1,5 +1,6 @@
 import React from 'react'
 import { Image, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import Animated, { FadeIn, FadeInDown, FadeInUp, ZoomIn } from 'react-native-reanimated'
 import Svg, { Path } from 'react-native-svg'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -13,6 +14,8 @@ import {
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import { getSelectedProfileById } from '@/data/mockSelectedProfiles'
 import { passProfile } from '@/lib/kolmi/storage'
+import { safePersist } from '@/lib/kolmi/safePersist'
+import { kolmiMotion, staggerDelay } from '@/lib/kolmi/motion'
 
 export default function MatchDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -89,7 +92,10 @@ export default function MatchDetailScreen() {
           showsVerticalScrollIndicator={false}
         >
           {profile.photoUrl && (
-            <Image
+            <Animated.Image
+              entering={FadeIn.delay(40)
+                .duration(kolmiMotion.duration.xl)
+                .easing(kolmiMotion.easing.expoOut)}
               source={{ uri: profile.photoUrl }}
               style={{
                 width: '100%',
@@ -100,7 +106,12 @@ export default function MatchDetailScreen() {
             />
           )}
 
-          <View style={{ gap: kolmiSpace.xs }}>
+          <Animated.View
+            entering={FadeInUp.delay(staggerDelay(0, 120))
+              .duration(kolmiMotion.duration.lg)
+              .easing(kolmiMotion.easing.soft)}
+            style={{ gap: kolmiSpace.xs }}
+          >
             <Text
               style={{
                 fontFamily: kolmiFonts.serif,
@@ -122,9 +133,12 @@ export default function MatchDetailScreen() {
             >
               {profile.dnaLabel} · {profile.city}
             </Text>
-          </View>
+          </Animated.View>
 
-          <View
+          <Animated.View
+            entering={FadeInUp.delay(staggerDelay(1, 120))
+              .duration(kolmiMotion.duration.lg)
+              .easing(kolmiMotion.easing.soft)}
             style={{
               borderWidth: 1,
               borderColor: kolmiColors.accent + '40',
@@ -155,28 +169,51 @@ export default function MatchDetailScreen() {
             >
               « {profile.reason} »
             </Text>
-          </View>
+          </Animated.View>
 
           {profile.intentions && (
-            <DetailBlock label="Intentions" italic>
-              {profile.intentions}
-            </DetailBlock>
+            <Animated.View
+              entering={FadeInUp.delay(staggerDelay(2, 120))
+                .duration(kolmiMotion.duration.lg)
+                .easing(kolmiMotion.easing.soft)}
+            >
+              <DetailBlock label="Intentions" italic>
+                {profile.intentions}
+              </DetailBlock>
+            </Animated.View>
           )}
 
           {profile.compatibilityPoints?.length > 0 && (
-            <BulletBlock label="Compatibilités" items={profile.compatibilityPoints} />
+            <Animated.View
+              entering={FadeInUp.delay(staggerDelay(3, 120))
+                .duration(kolmiMotion.duration.lg)
+                .easing(kolmiMotion.easing.soft)}
+            >
+              <BulletBlock label="Compatibilités" items={profile.compatibilityPoints} />
+            </Animated.View>
           )}
 
           {profile.cautionPoints?.length > 0 && (
-            <BulletBlock
-              label="Points d'attention"
-              items={profile.cautionPoints}
-              tone="muted"
-            />
+            <Animated.View
+              entering={FadeInUp.delay(staggerDelay(4, 120))
+                .duration(kolmiMotion.duration.lg)
+                .easing(kolmiMotion.easing.soft)}
+            >
+              <BulletBlock
+                label="Points d'attention"
+                items={profile.cautionPoints}
+                tone="muted"
+              />
+            </Animated.View>
           )}
 
           {profile.interests?.length > 0 && (
-            <View style={{ gap: kolmiSpace.xs }}>
+            <Animated.View
+              entering={FadeInUp.delay(staggerDelay(5, 120))
+                .duration(kolmiMotion.duration.lg)
+                .easing(kolmiMotion.easing.soft)}
+              style={{ gap: kolmiSpace.xs }}
+            >
               <Text
                 style={{
                   fontFamily: kolmiFonts.uiSemiBold,
@@ -190,7 +227,8 @@ export default function MatchDetailScreen() {
               </Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                 {profile.interests.map((interest, i) => (
-                  <View
+                  <Animated.View
+                    entering={ZoomIn.delay(staggerDelay(i, 700)).duration(kolmiMotion.duration.sm).easing(kolmiMotion.easing.soft)}
                     key={`${profile.id}-int-${i}`}
                     style={{
                       paddingHorizontal: 12,
@@ -210,19 +248,30 @@ export default function MatchDetailScreen() {
                     >
                       {interest}
                     </Text>
-                  </View>
+                  </Animated.View>
                 ))}
               </View>
-            </View>
+            </Animated.View>
           )}
 
           {profile.availabilityHint && (
-            <DetailBlock label="Disponibilité">
-              {profile.availabilityHint}
-            </DetailBlock>
+            <Animated.View
+              entering={FadeInUp.delay(staggerDelay(6, 120))
+                .duration(kolmiMotion.duration.lg)
+                .easing(kolmiMotion.easing.soft)}
+            >
+              <DetailBlock label="Disponibilité">
+                {profile.availabilityHint}
+              </DetailBlock>
+            </Animated.View>
           )}
 
-          <View style={{ gap: kolmiSpace.sm, marginTop: kolmiSpace.sm }}>
+          <Animated.View
+            entering={FadeInUp.delay(staggerDelay(7, 120))
+              .duration(kolmiMotion.duration.lg)
+              .easing(kolmiMotion.easing.soft)}
+            style={{ gap: kolmiSpace.sm, marginTop: kolmiSpace.sm }}
+          >
             <TouchableOpacity
               onPress={() => router.push(`/meeting/request/${profile.id}`)}
               activeOpacity={0.85}
@@ -253,7 +302,8 @@ export default function MatchDetailScreen() {
 
             <TouchableOpacity
               onPress={async () => {
-                await passProfile(profile.id)
+                const ok = await safePersist(() => passProfile(profile.id))
+                if (!ok) return
                 router.replace('/(tabs)')
               }}
               activeOpacity={0.7}
@@ -276,7 +326,7 @@ export default function MatchDetailScreen() {
                 Pas pour moi
               </Text>
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         </ScrollView>
       </SafeAreaView>
     </View>

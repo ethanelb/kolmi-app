@@ -24,6 +24,7 @@ import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import EmptyKeyboardAccessory, { EMPTY_ACCESSORY_ID } from '@/components/kolmi/EmptyKeyboardAccessory'
 import { tapMedium } from '@/lib/kolmi/haptics'
 import { getKolmiProfile, saveKolmiProfile } from '@/lib/kolmi/storage'
+import { safePersist } from '@/lib/kolmi/safePersist'
 
 const SIGNUP_TOTAL_STEPS = 11
 
@@ -119,14 +120,14 @@ export default function PhoneScreen() {
             <TouchableOpacity
               style={[styles.cta, !isValid && styles.ctaDisabled]}
               onPress={async () => {
-                if (isValid) {
-                  tapMedium()
-                  await saveKolmiProfile({ phone })
-                  router.push({
-                    pathname: '/onboarding/verify',
-                    params: { phone },
-                  })
-                }
+                if (!isValid) return
+                tapMedium()
+                const ok = await safePersist(() => saveKolmiProfile({ phone }))
+                if (!ok) return
+                router.push({
+                  pathname: '/onboarding/verify',
+                  params: { phone },
+                })
               }}
               activeOpacity={isValid ? 0.85 : 1}
             >

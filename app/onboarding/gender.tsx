@@ -14,6 +14,7 @@ import SignupHeader from '@/components/kolmi/SignupHeader'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import { select, tapMedium } from '@/lib/kolmi/haptics'
 import { getKolmiProfile, saveKolmiProfile } from '@/lib/kolmi/storage'
+import { safePersist } from '@/lib/kolmi/safePersist'
 
 const SIGNUP_TOTAL_STEPS = 11
 
@@ -99,14 +100,16 @@ export default function GenderScreen() {
           <TouchableOpacity
             style={[styles.cta, !selected && styles.ctaDisabled]}
             onPress={async () => {
-              if (selected) {
-                tapMedium()
-                await saveKolmiProfile({
+              if (!selected) return
+              tapMedium()
+              const ok = await safePersist(() =>
+                saveKolmiProfile({
                   gender: selected,
                   showGenderOnProfile: showOnProfile,
-                })
-                router.push('/onboarding/orientation')
-              }
+                }),
+              )
+              if (!ok) return
+              router.push('/onboarding/orientation')
             }}
             activeOpacity={selected ? 0.85 : 1}
           >

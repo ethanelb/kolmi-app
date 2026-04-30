@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'
 import {
@@ -10,6 +11,8 @@ import {
   kolmiSpace,
 } from '@/constants/kolmiTheme'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
+import AnimatedCounter from '@/components/kolmi/AnimatedCounter'
+import BreathingText from '@/components/kolmi/BreathingText'
 import {
   getKolmiDnaResult,
   getKolmiPreferences,
@@ -19,6 +22,7 @@ import {
   type KolmiPreferences,
   type KolmiProfile,
 } from '@/lib/kolmi/storage'
+import { kolmiMotion, staggerDelay } from '@/lib/kolmi/motion'
 import type { KolmiDnaResult } from '@/lib/kolmi/types'
 
 export default function ProfileTabScreen() {
@@ -121,9 +125,9 @@ export default function ProfileTabScreen() {
 
           {/* Maison ADN */}
           {dna && (
-            <Section title="Ma Maison">
+            <Section title="Ma Maison" index={0}>
               <View style={{ gap: kolmiSpace.xs }}>
-                <Text
+                <BreathingText
                   style={{
                     fontFamily: kolmiFonts.serif,
                     fontSize: 28,
@@ -132,7 +136,7 @@ export default function ProfileTabScreen() {
                   }}
                 >
                   {dna.categoryLabel}
-                </Text>
+                </BreathingText>
                 <Text
                   style={{
                     fontFamily: kolmiFonts.serifItalic,
@@ -161,7 +165,7 @@ export default function ProfileTabScreen() {
           )}
 
           {/* Tokens */}
-          <Section title="Tokens de rencontre">
+          <Section title="Tokens de rencontre" index={1}>
             <View
               style={{
                 flexDirection: 'row',
@@ -169,16 +173,15 @@ export default function ProfileTabScreen() {
                 gap: 8,
               }}
             >
-              <Text
+              <AnimatedCounter
+                value={tokens}
                 style={{
                   fontFamily: kolmiFonts.serif,
                   fontSize: 40,
                   color: kolmiColors.accent,
                   letterSpacing: -0.5,
                 }}
-              >
-                {tokens}
-              </Text>
+              />
               <Text
                 style={{
                   fontFamily: kolmiFonts.serifItalic,
@@ -206,7 +209,7 @@ export default function ProfileTabScreen() {
           </Section>
 
           {/* Profil — édition */}
-          <Section title="Mon profil">
+          <Section title="Mon profil" index={2}>
             <Text
               style={{
                 fontFamily: kolmiFonts.ui,
@@ -227,7 +230,7 @@ export default function ProfileTabScreen() {
           </Section>
 
           {/* Préférences */}
-          <Section title="Mes préférences">
+          <Section title="Mes préférences" index={3}>
             {prefs ? (
               <Text
                 style={{
@@ -254,7 +257,7 @@ export default function ProfileTabScreen() {
           </Section>
 
           {/* Compte */}
-          <Section title="Compte">
+          <Section title="Compte" index={4}>
             <ActionRow
               label="Confidentialité (bientôt)"
               onPress={() => {}}
@@ -279,9 +282,22 @@ export default function ProfileTabScreen() {
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  children,
+  index = 0,
+}: {
+  title: string
+  children: React.ReactNode
+  index?: number
+}) {
   return (
-    <View style={{ gap: kolmiSpace.sm }}>
+    <Animated.View
+      entering={FadeInUp.delay(staggerDelay(index, 80))
+        .duration(kolmiMotion.duration.lg)
+        .easing(kolmiMotion.easing.soft)}
+      style={{ gap: kolmiSpace.sm }}
+    >
       <Text
         style={{
           fontFamily: kolmiFonts.uiSemiBold,
@@ -305,7 +321,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       >
         {children}
       </View>
-    </View>
+    </Animated.View>
   )
 }
 

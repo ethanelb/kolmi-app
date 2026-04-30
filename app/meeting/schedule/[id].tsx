@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 import Svg, { Path } from 'react-native-svg'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -45,18 +45,33 @@ export default function MeetingScheduleScreen() {
       const seedFallback = KOLMI_DEMO_MODE
         ? mockMeetings.find((m) => m.id === id)
         : undefined
-      const fallback = stored ?? seedFallback ?? null
-      if (!cancelled) {
-        setMeeting(fallback)
-        setSelected(fallback?.selectedSlots ?? [])
-        setLoaded(true)
+      const found = stored ?? seedFallback ?? null
+      if (cancelled) return
+
+      // Guard d'état : on ne peut planifier que si le matchmaker attend
+      // les disponibilités. Sinon on redirige vers l'écran cohérent.
+      if (found) {
+        if (found.status === 'confirmed') {
+          router.replace(`/meeting/confirm/${found.id}`)
+          return
+        }
+        if (found.status !== 'accepted_waiting_slots') {
+          // requested_by_me / waiting_for_other / slots_submitted /
+          // completed / declined / expired → pas planifiable ici.
+          router.replace('/(tabs)/dates')
+          return
+        }
       }
+
+      setMeeting(found)
+      setSelected(found?.selectedSlots ?? [])
+      setLoaded(true)
     }
     load()
     return () => {
       cancelled = true
     }
-  }, [id])
+  }, [id, router])
 
   const profile = useMemo(
     () => (meeting ? getSelectedProfileById(meeting.profileId) : null),
@@ -78,6 +93,43 @@ export default function MeetingScheduleScreen() {
     if (!meeting || submitting || !canSubmit) return
     setSubmitting(true)
 
+    // Re-check status au moment du submit pour éviter qu'un meeting
+    // déjà confirmé sur un autre device ou refresh ne soit re-confirmé.
+    let stored: Meeting | null
+    try {
+      stored = await getMeetingById(meeting.id)
+    } catch (err) {
+      console.warn('[kolmi] schedule re-read failed', err)
+      Alert.alert(
+        'Action impossible',
+        'Une erreur est survenue. Réessayez dans un instant.',
+      )
+      setSubmitting(false)
+      return
+    }
+    const current = stored ?? meeting
+    if (current.status !== 'accepted_waiting_slots') {
+      // Quelqu'un (ou un autre onglet) a fait avancer le meeting entre
+      // l'ouverture de l'écran et le submit.
+      Alert.alert(
+        'Cette demande a évolué',
+        "Le statut de la rencontre a changé. Retrouvez-la dans Rendez-vous.",
+        [
+          {
+            text: 'OK',
+            onPress: () =>
+              router.replace(
+                current.status === 'confirmed'
+                  ? `/meeting/confirm/${current.id}`
+                  : '/(tabs)/dates',
+              ),
+          },
+        ],
+      )
+      setSubmitting(false)
+      return
+    }
+
     // V1 locale : pas d'aller-retour serveur. On simule l'acceptation
     // immédiate du matchmaker en passant le meeting en `confirmed`,
     // verrouillé sur le 1er créneau choisi et un lieu mock.
@@ -91,7 +143,6 @@ export default function MeetingScheduleScreen() {
     }
 
     try {
-      const stored = await getMeetingById(meeting.id)
       if (!stored) {
         // Promote a seed mock into local storage with the patched fields.
         await saveMeeting({ ...meeting, ...patch })
@@ -101,6 +152,10 @@ export default function MeetingScheduleScreen() {
       router.replace(`/meeting/confirm/${meeting.id}`)
     } catch (err) {
       console.warn('[kolmi] schedule submit failed', err)
+      Alert.alert(
+        'Confirmation impossible',
+        'Une erreur est survenue. Vos disponibilités n\'ont pas été enregistrées. Réessayez dans un instant.',
+      )
     } finally {
       setSubmitting(false)
     }
