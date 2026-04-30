@@ -3,6 +3,14 @@ import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Image } from 'rea
 import Svg, { Path } from 'react-native-svg'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  runOnJS,
+} from 'react-native-reanimated'
+import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import {
   kolmiColors,
   kolmiSpace,
@@ -20,7 +28,126 @@ import { pickProfilePhoto } from '@/lib/kolmi/photoPicker'
 const SIGNUP_TOTAL_STEPS = 11
 const { width } = Dimensions.get('window')
 const SLOT_GAP = 10
-const SLOT_SIZE = (width - kolmiPaddingX * 2 - SLOT_GAP * 2) / 3
+const COLS = 3
+const ROWS = 2
+const SLOT_SIZE = (width - kolmiPaddingX * 2 - SLOT_GAP * 2) / COLS
+const SLOT_HEIGHT = SLOT_SIZE * 1.3
+
+type PhotoSlotProps = {
+  index: number
+  photo: string | null
+  isRequired: boolean
+  onAdd: (i: number) => void
+  onRemove: (i: number) => void
+  onReorder: (from: number, to: number) => void
+}
+
+function PhotoSlot({ index, photo, isRequired, onAdd, onRemove, onReorder }: PhotoSlotProps) {
+  const translateX = useSharedValue(0)
+  const translateY = useSharedValue(0)
+  const scale = useSharedValue(1)
+  const dragging = useSharedValue(0)
+
+  const pan = Gesture.Pan()
+    .enabled(!!photo)
+    .activateAfterLongPress(250)
+    .onStart(() => {
+      dragging.value = 1
+      scale.value = withSpring(1.08, { damping: 14, stiffness: 220 })
+      runOnJS(tapLight)()
+    })
+    .onUpdate((e) => {
+      translateX.value = e.translationX
+      translateY.value = e.translationY
+    })
+    .onEnd((e) => {
+      const col = index % COLS
+      const row = Math.floor(index / COLS)
+      const targetCol = Math.max(
+        0,
+        Math.min(COLS - 1, Math.round(col + e.translationX / (SLOT_SIZE + SLOT_GAP))),
+      )
+      const targetRow = Math.max(
+        0,
+        Math.min(ROWS - 1, Math.round(row + e.translationY / (SLOT_HEIGHT + SLOT_GAP))),
+      )
+      const targetIndex = targetRow * COLS + targetCol
+      if (targetIndex !== index) {
+        runOnJS(onReorder)(index, targetIndex)
+      }
+      translateX.value = withSpring(0, { damping: 18, stiffness: 220 })
+      translateY.value = withSpring(0, { damping: 18, stiffness: 220 })
+      scale.value = withSpring(1, { damping: 18, stiffness: 220 })
+      dragging.value = withTiming(0, { duration: 180 })
+    })
+    .onFinalize(() => {
+      translateX.value = withSpring(0)
+      translateY.value = withSpring(0)
+      scale.value = withSpring(1)
+      dragging.value = withTiming(0, { duration: 180 })
+    })
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: scale.value },
+    ],
+    zIndex: dragging.value > 0 ? 20 : 0,
+    elevation: dragging.value > 0 ? 12 : 0,
+    shadowOpacity: dragging.value * 0.22,
+  }))
+
+  return (
+    <GestureDetector gesture={pan}>
+      <Animated.View style={[styles.slotWrap, animStyle]}>
+        <TouchableOpacity
+          style={[
+            styles.slot,
+            !photo && isRequired && styles.slotRequired,
+            !photo && !isRequired && styles.slotOptional,
+            photo && styles.slotFilled,
+          ]}
+          onPress={() => {
+            if (photo) return
+            tapLight()
+            onAdd(index)
+          }}
+          activeOpacity={photo ? 1 : 0.75}
+        >
+          {photo ? (
+            <>
+              <Image source={{ uri: photo }} style={styles.photoImage} />
+              <TouchableOpacity
+                style={styles.removeBtn}
+                onPress={() => onRemove(index)}
+                hitSlop={8}
+              >
+                <Svg width={10} height={10} viewBox="0 0 10 10" fill="none">
+                  <Path
+                    d="M1 1L9 9 M9 1L1 9"
+                    stroke={kolmiColors.white}
+                    strokeWidth={1.6}
+                    strokeLinecap="round"
+                  />
+                </Svg>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <Text
+              style={[
+                styles.plus,
+                isRequired ? styles.plusRequired : styles.plusOptional,
+              ]}
+            >
+              +
+            </Text>
+          )}
+        </TouchableOpacity>
+      </Animated.View>
+    </GestureDetector>
+  )
+}
 
 export default function PhotosScreen() {
   const router = useRouter()
@@ -51,6 +178,26 @@ export default function PhotosScreen() {
     })
   }
 
+  const removePhoto = (index: number) => {
+    setPhotos((prev) => {
+      const next = [...prev]
+      next[index] = null
+      return next
+    })
+  }
+
+  const reorderPhotos = (from: number, to: number) => {
+    if (from === to || from < 0 || to < 0 || from >= 6 || to >= 6) return
+    setPhotos((prev) => {
+      const next = [...prev]
+      const tmp = next[from]
+      next[from] = next[to]
+      next[to] = tmp
+      return next
+    })
+    tapMedium()
+  }
+
   return (
     <View style={styles.root}>
       <GrainOverlay />
@@ -70,61 +217,23 @@ export default function PhotosScreen() {
           </Text>
 
           <View style={styles.grid}>
-            {photos.map((photo, i) => {
-              const isRequired = i < 4
-              return (
-                <TouchableOpacity
-                  key={i}
-                  style={[
-                    styles.slot,
-                    !photo && isRequired && styles.slotRequired,
-                    !photo && !isRequired && styles.slotOptional,
-                    photo && styles.slotFilled,
-                  ]}
-                  onPress={() => {
-                    tapLight()
-                    void addPhoto(i)
-                  }}
-                  activeOpacity={0.75}
-                >
-                  {photo ? (
-                    <>
-                      <Image source={{ uri: photo }} style={styles.photoImage} />
-                      <TouchableOpacity
-                        style={styles.removeBtn}
-                        onPress={() => {
-                          const newPhotos = [...photos]
-                          newPhotos[i] = null
-                          setPhotos(newPhotos)
-                        }}
-                      >
-                        <Svg width={10} height={10} viewBox="0 0 10 10" fill="none">
-                          <Path
-                            d="M1 1L9 9 M9 1L1 9"
-                            stroke={kolmiColors.white}
-                            strokeWidth={1.6}
-                            strokeLinecap="round"
-                          />
-                        </Svg>
-                      </TouchableOpacity>
-                    </>
-                  ) : (
-                    <Text
-                      style={[
-                        styles.plus,
-                        isRequired ? styles.plusRequired : styles.plusOptional,
-                      ]}
-                    >
-                      +
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              )
-            })}
+            {photos.map((photo, i) => (
+              <PhotoSlot
+                key={i}
+                index={i}
+                photo={photo}
+                isRequired={i < 4}
+                onAdd={(idx) => {
+                  void addPhoto(idx)
+                }}
+                onRemove={removePhoto}
+                onReorder={reorderPhotos}
+              />
+            ))}
           </View>
 
           <Text style={styles.hint}>
-            Glisse pour réorganiser · 4 photos minimum requises
+            Maintiens une photo et glisse pour réorganiser · 4 photos minimum
           </Text>
         </View>
 
@@ -182,9 +291,17 @@ const styles = StyleSheet.create({
     gap: SLOT_GAP,
     marginTop: kolmiSpace.xl,
   },
-  slot: {
+  slotWrap: {
     width: SLOT_SIZE,
-    height: SLOT_SIZE * 1.3,
+    height: SLOT_HEIGHT,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowRadius: 18,
+    shadowOpacity: 0,
+  },
+  slot: {
+    width: '100%',
+    height: '100%',
     borderRadius: kolmiRadius.lg,
     borderWidth: 1.2,
     alignItems: 'center',
