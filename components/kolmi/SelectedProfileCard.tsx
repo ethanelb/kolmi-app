@@ -1,6 +1,7 @@
 import React from 'react'
 import { Image, Pressable, Text, View } from 'react-native'
 import { kolmiColors, kolmiFonts, kolmiRadius } from '@/constants/kolmiTheme'
+import ProfilePhotoPlaceholder from '@/components/kolmi/ProfilePhotoPlaceholder'
 import type { SelectedProfile } from '@/data/mockSelectedProfiles'
 
 type Props = {
@@ -27,7 +28,7 @@ export default function SelectedProfileCard({ profile, onPress }: Props) {
           style={{ width: '100%', height: 240, backgroundColor: kolmiColors.surfaceSoft }}
         />
       ) : (
-        <View style={{ height: 240, backgroundColor: kolmiColors.surfaceSoft }} />
+        <ProfilePhotoPlaceholder height={240} initial={profile.firstName} />
       )}
 
       <View style={{ padding: 16, gap: 8 }}>
