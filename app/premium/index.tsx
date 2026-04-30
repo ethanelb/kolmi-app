@@ -59,7 +59,12 @@ export default function PremiumScreen() {
   const [submittingId, setSubmittingId] = useState<string | null>(null)
 
   useEffect(() => {
-    getTokens().then(setBalance)
+    getTokens()
+      .then(setBalance)
+      .catch((err) => {
+        console.warn('[kolmi] getTokens failed', err)
+        setBalance(0)
+      })
   }, [])
 
   const onPurchase = async (pack: Pack) => {
@@ -80,7 +85,8 @@ export default function PremiumScreen() {
       console.warn('[kolmi] addTokens failed', err)
       Alert.alert(
         'Crédit impossible',
-        'Une erreur est survenue. Réessayez dans un instant.',
+        "Vos tokens n'ont pas pu être crédités. Vérifiez l'espace de stockage de l'appareil et réessayez.",
+        [{ text: 'Réessayer' }],
       )
     } finally {
       setSubmittingId(null)

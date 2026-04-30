@@ -92,16 +92,22 @@ export default function ProfileScreen() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    getKolmiProfile().then((p: KolmiProfile) => {
-      setFirstName(p.firstName ?? '')
-      const slots: (string | null)[] = [null, null, null, null, null, null]
-      ;(p.photoUrls ?? []).forEach((url, i) => {
-        if (i < 6) slots[i] = url
+    getKolmiProfile()
+      .then((p: KolmiProfile) => {
+        setFirstName(p.firstName ?? '')
+        const slots: (string | null)[] = [null, null, null, null, null, null]
+        ;(p.photoUrls ?? []).forEach((url, i) => {
+          if (i < 6) slots[i] = url
+        })
+        setPhotos(slots)
+        setLifestyle(p.lifestyle ?? {})
       })
-      setPhotos(slots)
-      setLifestyle(p.lifestyle ?? {})
-      setLoaded(true)
-    })
+      .catch((err) => {
+        console.warn('[kolmi] profile load failed', err)
+      })
+      .finally(() => {
+        setLoaded(true)
+      })
   }, [])
 
   const filledCount = photos.filter(Boolean).length
@@ -135,12 +141,14 @@ export default function ProfileScreen() {
     tapMedium()
     setSaving(true)
     try {
-      const ok = await safePersist(() =>
-        saveKolmiProfile({
-          firstName: firstName.trim(),
-          photoUrls: photos.filter((p): p is string => Boolean(p)),
-          lifestyle,
-        }),
+      const ok = await safePersist(
+        () =>
+          saveKolmiProfile({
+            firstName: firstName.trim(),
+            photoUrls: photos.filter((p): p is string => Boolean(p)),
+            lifestyle,
+          }),
+        "Impossible d'enregistrer votre profil. Vérifiez l'espace disponible et réessayez.",
       )
       if (!ok) return
       success()
