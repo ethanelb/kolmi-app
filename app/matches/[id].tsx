@@ -1,5 +1,5 @@
-import React from 'react'
-import { Image, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import React, { useState } from 'react'
+import { ActivityIndicator, Image, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 import Animated, { FadeIn, FadeInDown, FadeInUp, ZoomIn } from 'react-native-reanimated'
 import Svg, { Path } from 'react-native-svg'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -20,38 +20,16 @@ import { kolmiMotion, staggerDelay } from '@/lib/kolmi/motion'
 export default function MatchDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
+  // setReloadTick re-runs the lookup after a simulated network retry.
+  const [, setReloadTick] = useState(0)
   const profile = getSelectedProfileById(id ?? '')
 
   if (!profile) {
     return (
-      <View style={{ flex: 1, backgroundColor: kolmiColors.bg }}>
-        <GrainOverlay />
-        <SafeAreaView style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: kolmiPaddingX }}>
-          <Text
-            style={{
-              fontFamily: kolmiFonts.serifItalic,
-              fontSize: 16,
-              color: kolmiColors.textMuted,
-            }}
-          >
-            Profil introuvable.
-          </Text>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={{ marginTop: kolmiSpace.md }}
-          >
-            <Text
-              style={{
-                fontFamily: kolmiFonts.uiMedium,
-                fontSize: 14,
-                color: kolmiColors.accent,
-              }}
-            >
-              Retour
-            </Text>
-          </TouchableOpacity>
-        </SafeAreaView>
-      </View>
+      <ProfileUnavailable
+        onRetry={() => setReloadTick(t => t + 1)}
+        onBackToList={() => router.replace('/(tabs)')}
+      />
     )
   }
 
@@ -365,6 +343,142 @@ function DetailBlock({
       >
         {children}
       </Text>
+    </View>
+  )
+}
+
+function ProfileUnavailable({
+  onRetry,
+  onBackToList,
+}: {
+  onRetry: () => void
+  onBackToList: () => void
+}) {
+  const [status, setStatus] = useState<'idle' | 'loading' | 'failed'>('idle')
+
+  const handleRetry = () => {
+    setStatus('loading')
+    // Simulated network call — the underlying lookup is synchronous, but we
+    // give the user real feedback that something is being attempted.
+    setTimeout(() => {
+      setStatus('failed')
+      onRetry()
+    }, 1200)
+  }
+
+  return (
+    <View style={{ flex: 1, backgroundColor: kolmiColors.bg }}>
+      <GrainOverlay />
+      <SafeAreaView
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingHorizontal: kolmiPaddingX,
+        }}
+      >
+        <Animated.View
+          entering={FadeIn.duration(kolmiMotion.duration.lg).easing(kolmiMotion.easing.soft)}
+          style={{ alignItems: 'center', gap: kolmiSpace.md, maxWidth: 320 }}
+        >
+          <Text
+            style={{
+              fontFamily: kolmiFonts.serif,
+              fontSize: 28,
+              color: kolmiColors.text,
+              textAlign: 'center',
+              letterSpacing: -0.4,
+            }}
+          >
+            Profil indisponible
+          </Text>
+          <Text
+            style={{
+              fontFamily: kolmiFonts.serifItalic,
+              fontSize: 16,
+              color: kolmiColors.textSecondary,
+              textAlign: 'center',
+              lineHeight: 23,
+            }}
+          >
+            Ce profil n&apos;a pas pu être chargé. Il est peut-être temporairement
+            indisponible.
+          </Text>
+
+          <View style={{ width: '100%', gap: kolmiSpace.sm, marginTop: kolmiSpace.sm }}>
+            <TouchableOpacity
+              onPress={handleRetry}
+              activeOpacity={0.85}
+              disabled={status === 'loading'}
+              style={{
+                height: 56,
+                borderRadius: kolmiRadius.pill,
+                backgroundColor:
+                  status === 'loading' ? kolmiColors.surfaceSoft : kolmiColors.accent,
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexDirection: 'row',
+                gap: kolmiSpace.xs,
+              }}
+            >
+              {status === 'loading' ? (
+                <ActivityIndicator color={kolmiColors.textMuted} />
+              ) : (
+                <Text
+                  style={{
+                    fontFamily: kolmiFonts.uiSemiBold,
+                    fontSize: 16,
+                    color: kolmiColors.white,
+                    letterSpacing: 0.2,
+                  }}
+                >
+                  Rafraîchir
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            {status === 'failed' && (
+              <Animated.View
+                entering={FadeInUp.duration(kolmiMotion.duration.md).easing(kolmiMotion.easing.soft)}
+                style={{ gap: kolmiSpace.sm }}
+              >
+                <Text
+                  style={{
+                    fontFamily: kolmiFonts.serifItalic,
+                    fontSize: 14,
+                    color: kolmiColors.textMuted,
+                    textAlign: 'center',
+                  }}
+                >
+                  Le rechargement n&apos;a rien donné.
+                </Text>
+                <TouchableOpacity
+                  onPress={onBackToList}
+                  activeOpacity={0.7}
+                  style={{
+                    height: 56,
+                    borderRadius: kolmiRadius.pill,
+                    borderWidth: 1.5,
+                    borderColor: kolmiColors.outline,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: kolmiFonts.uiMedium,
+                      fontSize: 16,
+                      color: kolmiColors.text,
+                    }}
+                  >
+                    Retour à mes profils
+                  </Text>
+                </TouchableOpacity>
+              </Animated.View>
+            )}
+          </View>
+        </Animated.View>
+      </SafeAreaView>
     </View>
   )
 }
