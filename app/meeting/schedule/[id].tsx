@@ -79,15 +79,23 @@ export default function MeetingScheduleScreen() {
   )
 
   const toggle = (slot: string) => {
-    Haptics.selectionAsync().catch(() => {})
     setSelected((prev) => {
-      if (prev.includes(slot)) return prev.filter((s) => s !== slot)
-      if (prev.length >= MAX_SLOTS) return prev
+      if (prev.includes(slot)) {
+        Haptics.selectionAsync().catch(() => {})
+        return prev.filter((s) => s !== slot)
+      }
+      if (prev.length >= MAX_SLOTS) {
+        // Dépassement du plafond : feedback warning au lieu d'un no-op muet.
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {})
+        return prev
+      }
+      Haptics.selectionAsync().catch(() => {})
       return [...prev, slot]
     })
   }
 
   const canSubmit = selected.length >= MIN_SLOTS
+  const remainingToMin = Math.max(0, MIN_SLOTS - selected.length)
 
   const onSubmit = async () => {
     if (!meeting || submitting || !canSubmit) return
@@ -332,11 +340,13 @@ export default function MeetingScheduleScreen() {
               style={{
                 fontFamily: kolmiFonts.uiMedium,
                 fontSize: 13,
-                color: kolmiColors.textSecondary,
+                color: canSubmit ? kolmiColors.accent : kolmiColors.textSecondary,
                 textAlign: 'center',
               }}
             >
-              {selected.length} / {MAX_SLOTS} sélectionnés
+              {canSubmit
+                ? `${selected.length} / ${MAX_SLOTS} sélectionnés`
+                : `Encore ${remainingToMin} créneau${remainingToMin > 1 ? 'x' : ''} à choisir`}
             </Text>
 
             <TouchableOpacity
