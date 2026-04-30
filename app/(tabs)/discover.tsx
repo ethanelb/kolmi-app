@@ -11,6 +11,7 @@ import {
   kolmiRadius,
 } from '@/constants/kolmiTheme'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
+import SkeletonBlock from '@/components/kolmi/SkeletonBlock'
 import { mockSelectedProfiles, type SelectedProfile } from '@/data/mockSelectedProfiles'
 import { getPassedProfiles } from '@/lib/kolmi/storage'
 import { kolmiMotion, staggerDelay } from '@/lib/kolmi/motion'
@@ -26,9 +27,13 @@ export default function DiscoverScreen() {
   const router = useRouter()
   const [passed, setPassed] = useState<string[]>([])
   const [analyzed, setAnalyzed] = useState<Set<string>>(new Set())
+  const [isLoading, setIsLoading] = useState<boolean>(true)
 
   const refresh = React.useCallback(() => {
-    getPassedProfiles().then(setPassed)
+    getPassedProfiles().then((next) => {
+      setPassed(next)
+      setIsLoading(false)
+    })
   }, [])
 
   useEffect(() => {
@@ -103,7 +108,15 @@ export default function DiscoverScreen() {
             </Text>
           </View>
 
-          {allEmpty && (
+          {isLoading && (
+            <>
+              <DiscoverSectionSkeleton title="Profils mis en avant" cardCount={2} index={0} />
+              <DiscoverSectionSkeleton title="Compatibles avec votre Maison" cardCount={2} index={1} />
+              <DiscoverSectionSkeleton title="Disponibles cette semaine" cardCount={1} index={2} />
+            </>
+          )}
+
+          {!isLoading && allEmpty && (
             <View
               style={{
                 marginTop: kolmiSpace.lg,
@@ -137,7 +150,7 @@ export default function DiscoverScreen() {
             </View>
           )}
 
-          {!allEmpty && sections.map((section, sIdx) => (
+          {!isLoading && !allEmpty && sections.map((section, sIdx) => (
             <Animated.View
               key={section.id}
               entering={FadeInDown.delay(staggerDelay(sIdx, 120))
@@ -320,5 +333,67 @@ function DiscoverCard({
         </View>
       </View>
     </View>
+  )
+}
+
+function DiscoverCardSkeleton() {
+  return (
+    <View
+      style={{
+        borderRadius: kolmiRadius.lg,
+        borderWidth: 1,
+        borderColor: 'rgba(22,19,15,0.12)',
+        backgroundColor: '#FAF8F5',
+        overflow: 'hidden',
+      }}
+    >
+      <SkeletonBlock width="100%" height={220} radius={0} />
+      <View style={{ padding: kolmiSpace.md, gap: kolmiSpace.xs }}>
+        <SkeletonBlock width="55%" height={24} radius={6} />
+        <SkeletonBlock width="75%" height={12} radius={4} />
+        <SkeletonBlock width="100%" height={14} radius={4} />
+        <SkeletonBlock width="85%" height={14} radius={4} />
+        <View style={{ flexDirection: 'row', gap: kolmiSpace.xs, marginTop: kolmiSpace.sm }}>
+          <SkeletonBlock width="48%" height={44} radius={kolmiRadius.pill} />
+          <SkeletonBlock width="48%" height={44} radius={kolmiRadius.pill} />
+        </View>
+      </View>
+    </View>
+  )
+}
+
+function DiscoverSectionSkeleton({
+  title,
+  cardCount,
+  index = 0,
+}: {
+  title: string
+  cardCount: number
+  index?: number
+}) {
+  return (
+    <Animated.View
+      entering={FadeIn.delay(staggerDelay(index, 80))
+        .duration(kolmiMotion.duration.md)
+        .easing(kolmiMotion.easing.soft)}
+      style={{ gap: kolmiSpace.sm }}
+    >
+      <Text
+        style={{
+          fontFamily: kolmiFonts.uiSemiBold,
+          fontSize: 11,
+          color: kolmiColors.textSecondary,
+          textTransform: 'uppercase',
+          letterSpacing: 1.6,
+        }}
+      >
+        {title}
+      </Text>
+      <View style={{ gap: kolmiSpace.md }}>
+        {Array.from({ length: cardCount }).map((_, i) => (
+          <DiscoverCardSkeleton key={`${title}-skel-${i}`} />
+        ))}
+      </View>
+    </Animated.View>
   )
 }

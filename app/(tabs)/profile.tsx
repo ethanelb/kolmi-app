@@ -1,16 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native'
-import Animated, {
-  Easing,
-  FadeIn,
-  FadeInUp,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-} from 'react-native-reanimated'
+import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { LinearGradient } from 'expo-linear-gradient'
 import { useFocusEffect, useRouter } from 'expo-router'
 import {
   kolmiColors,
@@ -22,6 +13,7 @@ import {
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import AnimatedCounter from '@/components/kolmi/AnimatedCounter'
 import BreathingText from '@/components/kolmi/BreathingText'
+import SkeletonBlock from '@/components/kolmi/SkeletonBlock'
 import {
   getKolmiDnaResult,
   getKolmiPreferences,
@@ -358,78 +350,6 @@ function Section({
         {children}
       </View>
     </Animated.View>
-  )
-}
-
-function SkeletonBlock({
-  width,
-  height,
-  radius = 6,
-}: {
-  width: number | `${number}%`
-  height: number
-  radius?: number
-}) {
-  const [layoutWidth, setLayoutWidth] = useState(0)
-  const progress = useSharedValue(-1)
-
-  useEffect(() => {
-    if (layoutWidth === 0) return
-    progress.value = -1
-    progress.value = withRepeat(
-      withTiming(1, {
-        duration: 1400,
-        easing: Easing.inOut(Easing.ease),
-      }),
-      -1,
-      false,
-    )
-  }, [layoutWidth, progress])
-
-  const shimmerStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: progress.value * layoutWidth }],
-  }))
-
-  return (
-    <View
-      onLayout={(e) => {
-        const next = e.nativeEvent.layout.width
-        if (next !== layoutWidth) setLayoutWidth(next)
-      }}
-      style={{
-        width,
-        height,
-        borderRadius: radius,
-        overflow: 'hidden',
-        backgroundColor: 'rgba(22,19,15,0.07)',
-      }}
-    >
-      {layoutWidth > 0 && (
-        <Animated.View
-          style={[
-            {
-              position: 'absolute',
-              top: 0,
-              bottom: 0,
-              left: 0,
-              width: layoutWidth,
-            },
-            shimmerStyle,
-          ]}
-        >
-          <LinearGradient
-            colors={[
-              'rgba(250,248,245,0)',
-              'rgba(250,248,245,0.55)',
-              'rgba(250,248,245,0)',
-            ]}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            style={{ flex: 1 }}
-          />
-        </Animated.View>
-      )}
-    </View>
   )
 }
 
