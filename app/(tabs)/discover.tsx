@@ -11,6 +11,7 @@ import {
   kolmiRadius,
 } from '@/constants/kolmiTheme'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
+import ProfilePhotoPlaceholder from '@/components/kolmi/ProfilePhotoPlaceholder'
 import SkeletonBlock from '@/components/kolmi/SkeletonBlock'
 import { mockSelectedProfiles, type SelectedProfile } from '@/data/mockSelectedProfiles'
 import { getPassedProfiles } from '@/lib/kolmi/storage'
@@ -228,11 +229,13 @@ function DiscoverCard({
         overflow: 'hidden',
       }}
     >
-      {profile.photoUrl && (
+      {profile.photoUrl ? (
         <Image
           source={{ uri: profile.photoUrl }}
           style={{ width: '100%', height: 220, backgroundColor: kolmiColors.surfaceSoft }}
         />
+      ) : (
+        <ProfilePhotoPlaceholder height={220} initial={profile.firstName} />
       )}
       <View style={{ padding: kolmiSpace.md, gap: kolmiSpace.xs }}>
         <Text

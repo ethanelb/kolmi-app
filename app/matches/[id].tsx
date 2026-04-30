@@ -12,6 +12,7 @@ import {
   kolmiSpace,
 } from '@/constants/kolmiTheme'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
+import ProfilePhotoPlaceholder from '@/components/kolmi/ProfilePhotoPlaceholder'
 import { getSelectedProfileById } from '@/data/mockSelectedProfiles'
 import { passProfile } from '@/lib/kolmi/storage'
 import { safePersist } from '@/lib/kolmi/safePersist'
@@ -69,7 +70,7 @@ export default function MatchDetailScreen() {
           }}
           showsVerticalScrollIndicator={false}
         >
-          {profile.photoUrl && (
+          {profile.photoUrl ? (
             <Animated.Image
               entering={FadeIn.delay(40)
                 .duration(kolmiMotion.duration.xl)
@@ -82,6 +83,18 @@ export default function MatchDetailScreen() {
                 backgroundColor: kolmiColors.surfaceSoft,
               }}
             />
+          ) : (
+            <Animated.View
+              entering={FadeIn.delay(40)
+                .duration(kolmiMotion.duration.xl)
+                .easing(kolmiMotion.easing.expoOut)}
+            >
+              <ProfilePhotoPlaceholder
+                height={380}
+                initial={profile.firstName}
+                borderRadius={kolmiRadius.lg}
+              />
+            </Animated.View>
           )}
 
           <Animated.View
