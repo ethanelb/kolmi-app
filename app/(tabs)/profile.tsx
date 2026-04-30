@@ -246,12 +246,40 @@ export default function ProfileTabScreen() {
             >
               {(profile.photoUrls?.length ?? 0)} photo
               {(profile.photoUrls?.length ?? 0) > 1 ? 's' : ''}
+              {(() => {
+                const age = computeAge(profile.birthDate)
+                return age != null ? ` · ${age} ans` : ''
+              })()}
               {profile.heightCm ? ` · ${profile.heightCm} cm` : ''}
               {profile.gender ? ` · ${profile.gender}` : ''}
             </Text>
+            {profile.orientations?.length ? (
+              <Text
+                style={{
+                  fontFamily: kolmiFonts.ui,
+                  fontSize: 14,
+                  color: kolmiColors.textBody,
+                  lineHeight: 21,
+                }}
+              >
+                Recherche : {formatOrientations(profile.orientations)}
+              </Text>
+            ) : null}
             <ActionRow
-              label="Modifier mon profil"
-              onPress={() => router.push('/profile')}
+              label="Modifier ma date de naissance"
+              onPress={() => router.push('/profile/edit-birthday')}
+            />
+            <ActionRow
+              label="Modifier mon genre"
+              onPress={() => router.push('/profile/edit-gender')}
+            />
+            <ActionRow
+              label="Modifier ma taille"
+              onPress={() => router.push('/profile/edit-height')}
+            />
+            <ActionRow
+              label="Modifier mon orientation"
+              onPress={() => router.push('/profile/edit-orientation')}
             />
           </Section>
 
@@ -308,6 +336,26 @@ export default function ProfileTabScreen() {
       </SafeAreaView>
     </View>
   )
+}
+
+function computeAge(birthDate: KolmiProfile['birthDate']): number | null {
+  if (!birthDate) return null
+  const today = new Date()
+  let age = today.getFullYear() - birthDate.year
+  const m = today.getMonth() + 1 - birthDate.month
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.day)) age -= 1
+  return age >= 0 ? age : null
+}
+
+const ORIENTATION_LABELS: Record<string, string> = {
+  men: 'Hommes',
+  women: 'Femmes',
+  everyone: 'Tout le monde',
+  nonbinary: 'Personnes non-binaires',
+}
+
+function formatOrientations(ids: string[]): string {
+  return ids.map((id) => ORIENTATION_LABELS[id] ?? id).join(', ')
 }
 
 function Section({

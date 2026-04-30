@@ -126,6 +126,10 @@ export default function RootLayout() {
         <Stack.Screen name="meeting/confirm/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="premium/index" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="profile" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="profile/edit-birthday" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="profile/edit-gender" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="profile/edit-height" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="profile/edit-orientation" options={{ animation: 'slide_from_right' }} />
       </Stack>
     </GestureHandlerRootView>
   )
