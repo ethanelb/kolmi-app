@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Alert, Linking } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Image } from 'react-native'
 import Svg, { Path } from 'react-native-svg'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import * as ImagePicker from 'expo-image-picker'
 import {
   kolmiColors,
   kolmiSpace,
@@ -16,24 +15,7 @@ import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import { tapLight, tapMedium } from '@/lib/kolmi/haptics'
 import { getKolmiProfile, saveKolmiProfile } from '@/lib/kolmi/storage'
 import { safePersist } from '@/lib/kolmi/safePersist'
-
-const ensurePhotoLibraryPermission = async (): Promise<boolean> => {
-  const current = await ImagePicker.getMediaLibraryPermissionsAsync()
-  if (current.granted) return true
-  if (current.canAskAgain) {
-    const next = await ImagePicker.requestMediaLibraryPermissionsAsync()
-    if (next.granted) return true
-  }
-  Alert.alert(
-    'Accès aux photos requis',
-    "Kolmi a besoin d'accéder à ta bibliothèque pour ajouter des photos à ton profil. Active l'autorisation dans les réglages pour continuer.",
-    [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Ouvrir les paramètres', onPress: () => Linking.openSettings() },
-    ],
-  )
-  return false
-}
+import { pickProfilePhoto } from '@/lib/kolmi/photoPicker'
 
 const SIGNUP_TOTAL_STEPS = 11
 const { width } = Dimensions.get('window')
@@ -60,17 +42,13 @@ export default function PhotosScreen() {
   const isValid = filledCount >= 4
 
   const addPhoto = async (index: number) => {
-    const ok = await ensurePhotoLibraryPermission()
-    if (!ok) return
-    const mockPhotos = [
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400',
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400',
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400',
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400',
-    ]
-    const newPhotos = [...photos]
-    newPhotos[index] = mockPhotos[index % mockPhotos.length]
-    setPhotos(newPhotos)
+    const uri = await pickProfilePhoto()
+    if (!uri) return
+    setPhotos((prev) => {
+      const next = [...prev]
+      next[index] = uri
+      return next
+    })
   }
 
   return (
@@ -111,16 +89,7 @@ export default function PhotosScreen() {
                 >
                   {photo ? (
                     <>
-                      <View style={styles.photoPreview}>
-                        <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
-                          <Path
-                            d="M4 5h16v14H4z M8 13l3-3 4 5 2-2 3 3"
-                            stroke={kolmiColors.accent}
-                            strokeWidth={1.5}
-                            strokeLinejoin="round"
-                          />
-                        </Svg>
-                      </View>
+                      <Image source={{ uri: photo }} style={styles.photoImage} />
                       <TouchableOpacity
                         style={styles.removeBtn}
                         onPress={() => {
@@ -237,7 +206,7 @@ const styles = StyleSheet.create({
     borderStyle: 'solid',
     backgroundColor: kolmiColors.bgDeep,
   },
-  photoPreview: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  photoImage: { width: '100%', height: '100%' },
   removeBtn: {
     position: 'absolute',
     top: 6,

@@ -31,18 +31,12 @@ import {
   type KolmiProfile,
 } from '@/lib/kolmi/storage'
 import { safePersist } from '@/lib/kolmi/safePersist'
+import { pickProfilePhoto } from '@/lib/kolmi/photoPicker'
 import { select, success, tapMedium } from '@/lib/kolmi/haptics'
 
 const { width } = Dimensions.get('window')
 const SLOT_GAP = 10
 const SLOT_SIZE = (width - kolmiPaddingX * 2 - SLOT_GAP * 2) / 3
-
-const MOCK_PHOTOS = [
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400',
-  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400',
-  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400',
-  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400',
-]
 
 const LIFESTYLE_QUESTIONS = [
   {
@@ -114,37 +108,34 @@ export default function ProfileScreen() {
   const filledCount = photos.filter(Boolean).length
   const isValid = firstName.trim().length >= 2 && filledCount >= 4
 
-  const cyclePhotoSlot = (index: number) => {
+  const cyclePhotoSlot = async (index: number) => {
     const current = photos[index]
-    if (current && photos.filter(Boolean).length <= 4) {
-      Alert.alert(
-        'Photo requise',
-        "Tu dois garder au moins 4 photos sur ton profil. Ajoute une autre photo avant de retirer celle-ci.",
-      )
-      return
-    }
-    try {
+    if (current) {
+      if (photos.filter(Boolean).length <= 4) {
+        Alert.alert(
+          'Photo requise',
+          "Tu dois garder au moins 4 photos sur ton profil. Ajoute une autre photo avant de retirer celle-ci.",
+        )
+        return
+      }
       select()
       setPhotos((prev) => {
         const next = [...prev]
-        const slot = next[index]
-        if (!slot) {
-          const used = new Set(next.filter((p): p is string => Boolean(p)))
-          const candidate = MOCK_PHOTOS.find((u) => !used.has(u)) ?? MOCK_PHOTOS[index % MOCK_PHOTOS.length]
-          next[index] = candidate
-        } else {
-          next[index] = null
-        }
+        next[index] = null
         return next
       })
       setDirty(true)
-    } catch (err) {
-      console.warn('[kolmi] photo slot update failed', err)
-      Alert.alert(
-        'Action impossible',
-        "La modification de cette photo n'a pas pu être appliquée. Réessaie dans un instant.",
-      )
+      return
     }
+    const uri = await pickProfilePhoto()
+    if (!uri) return
+    select()
+    setPhotos((prev) => {
+      const next = [...prev]
+      next[index] = uri
+      return next
+    })
+    setDirty(true)
   }
 
   const setLifestyleAnswer = (qid: string, opt: string) => {
@@ -242,7 +233,9 @@ export default function ProfileScreen() {
                         <TouchableOpacity
                           key={i}
                           activeOpacity={0.85}
-                          onPress={() => cyclePhotoSlot(i)}
+                          onPress={() => {
+                            void cyclePhotoSlot(i)
+                          }}
                           style={[
                             styles.slot,
                             !photo && isRequired && styles.slotRequired,
