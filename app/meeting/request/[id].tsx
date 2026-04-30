@@ -19,7 +19,12 @@ import {
 } from '@/constants/kolmiTheme'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import { getSelectedProfileById } from '@/data/mockSelectedProfiles'
-import { getTokens, saveMeeting, spendToken } from '@/lib/kolmi/storage'
+import {
+  deleteMeeting,
+  getTokens,
+  saveMeeting,
+  spendToken,
+} from '@/lib/kolmi/storage'
 import type { Meeting } from '@/lib/kolmi/types'
 
 export default function MeetingRequestScreen() {
@@ -78,8 +83,10 @@ export default function MeetingRequestScreen() {
   const onConfirm = async () => {
     if (submitting) return
     setSubmitting(true)
-    const ok = await spendToken()
-    if (!ok) {
+
+    // Pre-check tokens without spending — if zero, push to premium.
+    const balance = await getTokens()
+    if (balance <= 0) {
       setSubmitting(false)
       Alert.alert(
         'Plus de tokens',
@@ -94,6 +101,11 @@ export default function MeetingRequestScreen() {
       )
       return
     }
+
+    // V1 local: save the meeting first, then spend the token. If the spend
+    // fails after the meeting is persisted, roll back the meeting so the
+    // user neither pays for nothing nor sees a ghost meeting.
+    // In production this MUST be a server-side transaction.
     const now = new Date().toISOString()
     const meeting: Meeting = {
       id: `meeting-${profile.id}-${Date.now()}`,
@@ -101,9 +113,26 @@ export default function MeetingRequestScreen() {
       status: 'waiting_for_other',
       createdAt: now,
     }
-    await saveMeeting(meeting)
-    setSubmitting(false)
-    router.replace('/(tabs)/dates')
+
+    try {
+      await saveMeeting(meeting)
+      const spent = await spendToken()
+      if (!spent) {
+        await deleteMeeting(meeting.id)
+        throw new Error('Token introuvable au moment du débit.')
+      }
+      router.replace('/(tabs)/dates')
+    } catch (err) {
+      console.warn('[kolmi] meeting request failed', err)
+      // Best-effort rollback if anything fails downstream of save.
+      deleteMeeting(meeting.id).catch(() => {})
+      Alert.alert(
+        'Demande non envoyée',
+        "Une erreur est survenue. Aucun token n'a été débité. Réessayez dans un instant.",
+      )
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (

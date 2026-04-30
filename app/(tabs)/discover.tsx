@@ -53,6 +53,8 @@ export default function DiscoverScreen() {
     { id: 'week', title: 'Disponibles cette semaine', profiles: week },
   ]
 
+  const allEmpty = sections.every((s) => s.profiles.length === 0)
+
   function handleAnalyze(id: string) {
     tapMedium()
     setAnalyzed((prev) => {
@@ -99,7 +101,41 @@ export default function DiscoverScreen() {
             </Text>
           </View>
 
-          {sections.map((section) => (
+          {allEmpty && (
+            <View
+              style={{
+                marginTop: kolmiSpace.lg,
+                padding: kolmiSpace.lg,
+                borderRadius: kolmiRadius.lg,
+                borderWidth: 1,
+                borderColor: kolmiColors.outline,
+                gap: kolmiSpace.sm,
+              }}
+            >
+              <Text
+                style={{
+                  fontFamily: kolmiFonts.serif,
+                  fontSize: 22,
+                  color: kolmiColors.text,
+                  lineHeight: 28,
+                }}
+              >
+                Aucun profil mis en avant pour le moment.
+              </Text>
+              <Text
+                style={{
+                  fontFamily: kolmiFonts.serifItalic,
+                  fontSize: 15,
+                  color: kolmiColors.textBody,
+                  lineHeight: 22,
+                }}
+              >
+                Revenez plus tard — votre matchmaker prépare de nouvelles découvertes.
+              </Text>
+            </View>
+          )}
+
+          {!allEmpty && sections.map((section) => (
             <View key={section.id} style={{ gap: kolmiSpace.sm }}>
               <Text
                 style={{

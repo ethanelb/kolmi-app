@@ -1,8 +1,10 @@
-import Anthropic from '@anthropic-ai/sdk'
+// Client Anthropic volontairement absent côté app : exposer une clé API
+// dans le bundle React Native est non négociable, même en dev. Tout appel
+// IA doit passer par une fonction serveur (Supabase Edge Function ou autre)
+// qui détient la clé et applique du rate limiting.
 
-// NOTE: In production, ces appels doivent passer par une Supabase Edge Function
-// pour ne pas exposer la clé API. Pour le dev local, on appelle directement.
-export const anthropic = new Anthropic({
-  apiKey: process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '',
-  dangerouslyAllowBrowser: true,
-})
+export async function callKolmiAI(_input: unknown): Promise<never> {
+  throw new Error(
+    'Anthropic calls must go through a server-side function. The client SDK is intentionally not wired up.',
+  )
+}

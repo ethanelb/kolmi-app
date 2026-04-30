@@ -250,13 +250,13 @@ export default function ProfileTabScreen() {
                 Aucune préférence renseignée.
               </Text>
             )}
-            <ActionRow label="Modifier mes préférences" onPress={() => {}} disabled />
+            <ActionRow label="Modifier mes préférences (bientôt)" onPress={() => {}} disabled />
           </Section>
 
           {/* Compte */}
           <Section title="Compte">
             <ActionRow
-              label="Confidentialité"
+              label="Confidentialité (bientôt)"
               onPress={() => {}}
               disabled
             />

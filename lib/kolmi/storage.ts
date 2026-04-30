@@ -39,20 +39,40 @@ const defaultProgress: KolmiProgress = {
   hasCompletedMatchmaker: false,
 }
 
+// ─── Helpers JSON robustes ───────────────────────────────────────────
+//
+// Si AsyncStorage contient une donnée corrompue (JSON invalide, type
+// inattendu après une migration), on supprime la clé et on retourne le
+// fallback plutôt que de laisser l'app crasher au boot.
+
+async function getJson<T>(key: string, fallback: T): Promise<T> {
+  const raw = await AsyncStorage.getItem(key)
+  if (raw === null) return fallback
+  try {
+    return JSON.parse(raw) as T
+  } catch (err) {
+    console.warn(`[kolmi] corrupt JSON for ${key}, resetting`, err)
+    await AsyncStorage.removeItem(key)
+    return fallback
+  }
+}
+
+async function setJson<T>(key: string, value: T): Promise<void> {
+  await AsyncStorage.setItem(key, JSON.stringify(value))
+}
+
 export async function getKolmiProgress(): Promise<KolmiProgress> {
-  const raw = await AsyncStorage.getItem(PROGRESS_KEY)
-  if (!raw) return defaultProgress
-  return { ...defaultProgress, ...JSON.parse(raw) }
+  const stored = await getJson<Partial<KolmiProgress>>(PROGRESS_KEY, {})
+  return { ...defaultProgress, ...stored }
 }
 
 export async function saveKolmiProgress(progress: Partial<KolmiProgress>) {
   const current = await getKolmiProgress()
-  await AsyncStorage.setItem(PROGRESS_KEY, JSON.stringify({ ...current, ...progress }))
+  await setJson(PROGRESS_KEY, { ...current, ...progress })
 }
 
 export async function getKolmiAnswers(): Promise<KolmiAnswer[]> {
-  const raw = await AsyncStorage.getItem(ANSWERS_KEY)
-  return raw ? JSON.parse(raw) : []
+  return getJson<KolmiAnswer[]>(ANSWERS_KEY, [])
 }
 
 export async function saveKolmiAnswer(answer: KolmiAnswer) {
@@ -60,7 +80,7 @@ export async function saveKolmiAnswer(answer: KolmiAnswer) {
     const current = await getKolmiAnswers()
     const next = current.filter((item) => item.questionId !== answer.questionId)
     next.push(answer)
-    await AsyncStorage.setItem(ANSWERS_KEY, JSON.stringify(next))
+    await setJson(ANSWERS_KEY, next)
     // TODO Supabase sync later
   } catch (err) {
     console.warn('[kolmi] saveKolmiAnswer failed', err)
@@ -69,7 +89,7 @@ export async function saveKolmiAnswer(answer: KolmiAnswer) {
 
 export async function saveKolmiDnaResult(result: KolmiDnaResult) {
   try {
-    await AsyncStorage.setItem(DNA_RESULT_KEY, JSON.stringify(result))
+    await setJson(DNA_RESULT_KEY, result)
     // TODO Supabase sync later
   } catch (err) {
     console.warn('[kolmi] saveKolmiDnaResult failed', err)
@@ -77,19 +97,17 @@ export async function saveKolmiDnaResult(result: KolmiDnaResult) {
 }
 
 export async function getKolmiDnaResult(): Promise<KolmiDnaResult | null> {
-  const raw = await AsyncStorage.getItem(DNA_RESULT_KEY)
-  return raw ? JSON.parse(raw) : null
+  return getJson<KolmiDnaResult | null>(DNA_RESULT_KEY, null)
 }
 
 export async function getKolmiProfile(): Promise<KolmiProfile> {
-  const raw = await AsyncStorage.getItem(PROFILE_KEY)
-  return raw ? JSON.parse(raw) : {}
+  return getJson<KolmiProfile>(PROFILE_KEY, {})
 }
 
 export async function saveKolmiProfile(patch: Partial<KolmiProfile>) {
   try {
     const current = await getKolmiProfile()
-    await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify({ ...current, ...patch }))
+    await setJson(PROFILE_KEY, { ...current, ...patch })
     // TODO Supabase sync later
   } catch (err) {
     console.warn('[kolmi] saveKolmiProfile failed', err)
@@ -98,7 +116,7 @@ export async function saveKolmiProfile(patch: Partial<KolmiProfile>) {
 
 export async function saveKolmiPreferences(prefs: KolmiPreferences) {
   try {
-    await AsyncStorage.setItem(PREFERENCES_KEY, JSON.stringify(prefs))
+    await setJson(PREFERENCES_KEY, prefs)
     // TODO Supabase sync later
   } catch (err) {
     console.warn('[kolmi] saveKolmiPreferences failed', err)
@@ -106,17 +124,20 @@ export async function saveKolmiPreferences(prefs: KolmiPreferences) {
 }
 
 export async function getKolmiPreferences(): Promise<KolmiPreferences | null> {
-  const raw = await AsyncStorage.getItem(PREFERENCES_KEY)
-  return raw ? JSON.parse(raw) : null
+  return getJson<KolmiPreferences | null>(PREFERENCES_KEY, null)
 }
 
 // ─── Tokens (paid meeting requests) ──────────────────────────────────
 
 export async function getTokens(): Promise<number> {
   const raw = await AsyncStorage.getItem(TOKENS_KEY)
-  if (!raw) return 0
+  if (raw === null) return 0
   const n = parseInt(raw, 10)
-  return Number.isFinite(n) ? n : 0
+  if (!Number.isFinite(n)) {
+    await AsyncStorage.removeItem(TOKENS_KEY)
+    return 0
+  }
+  return n
 }
 
 export async function setTokens(value: number) {
@@ -140,8 +161,7 @@ export async function spendToken(): Promise<boolean> {
 // ─── Passed profiles (locally hidden) ────────────────────────────────
 
 export async function getPassedProfiles(): Promise<string[]> {
-  const raw = await AsyncStorage.getItem(PASSED_PROFILES_KEY)
-  return raw ? JSON.parse(raw) : []
+  return getJson<string[]>(PASSED_PROFILES_KEY, [])
 }
 
 export async function passProfile(profileId: string) {
@@ -149,7 +169,7 @@ export async function passProfile(profileId: string) {
     const current = await getPassedProfiles()
     if (current.includes(profileId)) return
     const next = [...current, profileId]
-    await AsyncStorage.setItem(PASSED_PROFILES_KEY, JSON.stringify(next))
+    await setJson(PASSED_PROFILES_KEY, next)
   } catch (err) {
     console.warn('[kolmi] passProfile failed', err)
   }
@@ -158,8 +178,7 @@ export async function passProfile(profileId: string) {
 // ─── Meetings (request → schedule → confirm) ─────────────────────────
 
 export async function getMeetings(): Promise<Meeting[]> {
-  const raw = await AsyncStorage.getItem(MEETINGS_KEY)
-  return raw ? JSON.parse(raw) : []
+  return getJson<Meeting[]>(MEETINGS_KEY, [])
 }
 
 export async function getMeetingById(id: string): Promise<Meeting | null> {
@@ -168,24 +187,22 @@ export async function getMeetingById(id: string): Promise<Meeting | null> {
 }
 
 export async function saveMeeting(meeting: Meeting) {
-  try {
-    const all = await getMeetings()
-    const next = [...all.filter((m) => m.id !== meeting.id), meeting]
-    await AsyncStorage.setItem(MEETINGS_KEY, JSON.stringify(next))
-    // TODO Supabase sync later
-  } catch (err) {
-    console.warn('[kolmi] saveMeeting failed', err)
-  }
+  const all = await getMeetings()
+  const next = [...all.filter((m) => m.id !== meeting.id), meeting]
+  await setJson(MEETINGS_KEY, next)
+  // TODO Supabase sync later
 }
 
 export async function updateMeeting(id: string, patch: Partial<Meeting>) {
-  try {
-    const all = await getMeetings()
-    const next = all.map((m) => (m.id === id ? { ...m, ...patch } : m))
-    await AsyncStorage.setItem(MEETINGS_KEY, JSON.stringify(next))
-  } catch (err) {
-    console.warn('[kolmi] updateMeeting failed', err)
-  }
+  const all = await getMeetings()
+  const next = all.map((m) => (m.id === id ? { ...m, ...patch } : m))
+  await setJson(MEETINGS_KEY, next)
+}
+
+export async function deleteMeeting(id: string) {
+  const all = await getMeetings()
+  const next = all.filter((m) => m.id !== id)
+  await setJson(MEETINGS_KEY, next)
 }
 
 export async function resetKolmiState() {

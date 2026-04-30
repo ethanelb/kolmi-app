@@ -15,6 +15,7 @@ import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import { mockMeetings } from '@/data/mockMeetings'
 import { getSelectedProfileById } from '@/data/mockSelectedProfiles'
 import { getMeetingById, saveMeeting, updateMeeting } from '@/lib/kolmi/storage'
+import { KOLMI_DEMO_MODE } from '@/constants/kolmiConfig'
 import type { Meeting } from '@/lib/kolmi/types'
 
 const SLOT_OPTIONS = [
@@ -41,7 +42,10 @@ export default function MeetingScheduleScreen() {
     let cancelled = false
     async function load() {
       const stored = id ? await getMeetingById(id) : null
-      const fallback = stored ?? mockMeetings.find((m) => m.id === id) ?? null
+      const seedFallback = KOLMI_DEMO_MODE
+        ? mockMeetings.find((m) => m.id === id)
+        : undefined
+      const fallback = stored ?? seedFallback ?? null
       if (!cancelled) {
         setMeeting(fallback)
         setSelected(fallback?.selectedSlots ?? [])
@@ -73,22 +77,33 @@ export default function MeetingScheduleScreen() {
   const onSubmit = async () => {
     if (!meeting || submitting || !canSubmit) return
     setSubmitting(true)
-    const stored = await getMeetingById(meeting.id)
-    if (!stored) {
-      // Promote a seed mock into local storage with the patched fields.
-      await saveMeeting({
-        ...meeting,
-        status: 'slots_submitted',
-        selectedSlots: selected,
-      })
-    } else {
-      await updateMeeting(meeting.id, {
-        status: 'slots_submitted',
-        selectedSlots: selected,
-      })
+
+    // V1 locale : pas d'aller-retour serveur. On simule l'acceptation
+    // immédiate du matchmaker en passant le meeting en `confirmed`,
+    // verrouillé sur le 1er créneau choisi et un lieu mock.
+    const confirmedSlot = selected[0]
+    const venueId = 'cafe-nuances'
+    const patch = {
+      status: 'confirmed' as const,
+      selectedSlots: selected,
+      confirmedSlot,
+      venueId,
     }
-    setSubmitting(false)
-    router.back()
+
+    try {
+      const stored = await getMeetingById(meeting.id)
+      if (!stored) {
+        // Promote a seed mock into local storage with the patched fields.
+        await saveMeeting({ ...meeting, ...patch })
+      } else {
+        await updateMeeting(meeting.id, patch)
+      }
+      router.replace(`/meeting/confirm/${meeting.id}`)
+    } catch (err) {
+      console.warn('[kolmi] schedule submit failed', err)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (

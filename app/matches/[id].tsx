@@ -12,6 +12,7 @@ import {
 } from '@/constants/kolmiTheme'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import { getSelectedProfileById } from '@/data/mockSelectedProfiles'
+import { passProfile } from '@/lib/kolmi/storage'
 
 export default function MatchDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -142,7 +143,7 @@ export default function MatchDetailScreen() {
                 letterSpacing: 1.2,
               }}
             >
-              Compatibilité {profile.compatibility}%
+              Compatibilité {profile.compatibility}% · Pourquoi ce profil
             </Text>
             <Text
               style={{
@@ -155,6 +156,71 @@ export default function MatchDetailScreen() {
               « {profile.reason} »
             </Text>
           </View>
+
+          {profile.intentions && (
+            <DetailBlock label="Intentions" italic>
+              {profile.intentions}
+            </DetailBlock>
+          )}
+
+          {profile.compatibilityPoints?.length > 0 && (
+            <BulletBlock label="Compatibilités" items={profile.compatibilityPoints} />
+          )}
+
+          {profile.cautionPoints?.length > 0 && (
+            <BulletBlock
+              label="Points d'attention"
+              items={profile.cautionPoints}
+              tone="muted"
+            />
+          )}
+
+          {profile.interests?.length > 0 && (
+            <View style={{ gap: kolmiSpace.xs }}>
+              <Text
+                style={{
+                  fontFamily: kolmiFonts.uiSemiBold,
+                  fontSize: 11,
+                  color: kolmiColors.textSecondary,
+                  textTransform: 'uppercase',
+                  letterSpacing: 1.6,
+                }}
+              >
+                Centres d&apos;intérêt
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {profile.interests.map((interest, i) => (
+                  <View
+                    key={`${profile.id}-int-${i}`}
+                    style={{
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: kolmiColors.outline,
+                      backgroundColor: '#FAF8F5',
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: kolmiFonts.ui,
+                        fontSize: 13,
+                        color: kolmiColors.text,
+                      }}
+                    >
+                      {interest}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {profile.availabilityHint && (
+            <DetailBlock label="Disponibilité">
+              {profile.availabilityHint}
+            </DetailBlock>
+          )}
 
           <View style={{ gap: kolmiSpace.sm, marginTop: kolmiSpace.sm }}>
             <TouchableOpacity
@@ -186,7 +252,10 @@ export default function MatchDetailScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => router.back()}
+              onPress={async () => {
+                await passProfile(profile.id)
+                router.replace('/(tabs)')
+              }}
               activeOpacity={0.7}
               style={{
                 height: 56,
@@ -210,6 +279,99 @@ export default function MatchDetailScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+    </View>
+  )
+}
+
+function DetailBlock({
+  label,
+  children,
+  italic,
+}: {
+  label: string
+  children: string
+  italic?: boolean
+}) {
+  return (
+    <View style={{ gap: kolmiSpace.xs }}>
+      <Text
+        style={{
+          fontFamily: kolmiFonts.uiSemiBold,
+          fontSize: 11,
+          color: kolmiColors.textSecondary,
+          textTransform: 'uppercase',
+          letterSpacing: 1.6,
+        }}
+      >
+        {label}
+      </Text>
+      <Text
+        style={{
+          fontFamily: italic ? kolmiFonts.serifItalic : kolmiFonts.ui,
+          fontSize: italic ? 16 : 14,
+          color: kolmiColors.textBody,
+          lineHeight: italic ? 23 : 21,
+        }}
+      >
+        {children}
+      </Text>
+    </View>
+  )
+}
+
+function BulletBlock({
+  label,
+  items,
+  tone,
+}: {
+  label: string
+  items: string[]
+  tone?: 'muted'
+}) {
+  return (
+    <View style={{ gap: kolmiSpace.xs }}>
+      <Text
+        style={{
+          fontFamily: kolmiFonts.uiSemiBold,
+          fontSize: 11,
+          color: tone === 'muted' ? kolmiColors.textMuted : kolmiColors.accent,
+          textTransform: 'uppercase',
+          letterSpacing: 1.6,
+        }}
+      >
+        {label}
+      </Text>
+      <View style={{ gap: 4 }}>
+        {items.map((item, i) => (
+          <View
+            key={`${label}-${i}`}
+            style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}
+          >
+            <Text
+              style={{
+                fontFamily: kolmiFonts.uiSemiBold,
+                fontSize: 14,
+                lineHeight: 21,
+                color:
+                  tone === 'muted' ? kolmiColors.textMuted : kolmiColors.accent,
+              }}
+            >
+              ·
+            </Text>
+            <Text
+              style={{
+                flex: 1,
+                fontFamily: kolmiFonts.ui,
+                fontSize: 14,
+                color: kolmiColors.textBody,
+                lineHeight: 21,
+              }}
+            >
+              {item}
+            </Text>
+          </View>
+        ))}
+      </View>
     </View>
   )
 }

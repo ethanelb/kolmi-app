@@ -13,6 +13,7 @@ import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import { mockMeetings } from '@/data/mockMeetings'
 import { getMeetings } from '@/lib/kolmi/storage'
 import { getSelectedProfileById } from '@/data/mockSelectedProfiles'
+import { KOLMI_DEMO_MODE } from '@/constants/kolmiConfig'
 import type { Meeting, MeetingStatus } from '@/lib/kolmi/types'
 
 const SECTION_LABELS: Record<'todo' | 'waiting' | 'confirmed' | 'past', string> = {
@@ -61,9 +62,14 @@ function statusLabel(status: MeetingStatus, slot?: string): string {
 }
 
 // Merge user-saved meetings with seed mocks. User entries win on id collision.
+// In demo mode the seed mocks pre-populate the dates tab so the UI is never
+// empty during demos. Real beta users (KOLMI_DEMO_MODE=false) only see their
+// own meetings.
 function mergeMeetings(saved: Meeting[]): Meeting[] {
   const byId = new Map<string, Meeting>()
-  for (const m of mockMeetings) byId.set(m.id, m)
+  if (KOLMI_DEMO_MODE) {
+    for (const m of mockMeetings) byId.set(m.id, m)
+  }
   for (const m of saved) byId.set(m.id, m)
   return Array.from(byId.values()).sort(
     (a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt),
@@ -162,7 +168,7 @@ export default function DatesScreen() {
                   lineHeight: 28,
                 }}
               >
-                Aucune rencontre pour l&apos;instant.
+                Aucune rencontre en cours.
               </Text>
               <Text
                 style={{
@@ -172,7 +178,7 @@ export default function DatesScreen() {
                   lineHeight: 22,
                 }}
               >
-                Demandez une rencontre depuis un profil de votre Sélection.
+                Les demandes apparaîtront ici. Commencez depuis un profil de votre Sélection.
               </Text>
             </View>
           )}

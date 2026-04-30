@@ -15,6 +15,7 @@ import { mockMeetings } from '@/data/mockMeetings'
 import { mockVenues, getVenueById } from '@/data/mockVenues'
 import { getSelectedProfileById } from '@/data/mockSelectedProfiles'
 import { getMeetingById } from '@/lib/kolmi/storage'
+import { KOLMI_DEMO_MODE } from '@/constants/kolmiConfig'
 import type { Meeting } from '@/lib/kolmi/types'
 
 export default function MeetingConfirmScreen() {
@@ -27,7 +28,10 @@ export default function MeetingConfirmScreen() {
     let cancelled = false
     async function load() {
       const stored = id ? await getMeetingById(id) : null
-      const fallback = stored ?? mockMeetings.find((m) => m.id === id) ?? null
+      const seedFallback = KOLMI_DEMO_MODE
+        ? mockMeetings.find((m) => m.id === id)
+        : undefined
+      const fallback = stored ?? seedFallback ?? null
       if (!cancelled) {
         setMeeting(fallback)
         setLoaded(true)

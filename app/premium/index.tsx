@@ -16,7 +16,6 @@ import { addTokens, getTokens } from '@/lib/kolmi/storage'
 type Pack = {
   id: string
   name: string
-  price: string
   tokens: number
   perks: string[]
   highlight?: boolean
@@ -26,14 +25,12 @@ const packs: Pack[] = [
   {
     id: 'decouverte',
     name: 'Découverte',
-    price: '14,90 €',
     tokens: 3,
     perks: ['3 demandes de rencontre', 'Lecture de votre Maison'],
   },
   {
     id: 'serieux',
     name: 'Sérieux',
-    price: '34,90 €',
     tokens: 8,
     perks: [
       '8 demandes de rencontre',
@@ -45,7 +42,6 @@ const packs: Pack[] = [
   {
     id: 'concierge',
     name: 'Concierge',
-    price: '79,90 €',
     tokens: 20,
     perks: [
       '20 demandes de rencontre',
@@ -67,15 +63,26 @@ export default function PremiumScreen() {
   const onPurchase = async (pack: Pack) => {
     if (submittingId) return
     setSubmittingId(pack.id)
-    // TODO Stripe checkout — for now we credit tokens locally.
-    const next = await addTokens(pack.tokens)
-    setBalance(next)
-    setSubmittingId(null)
-    Alert.alert(
-      'Tokens crédités',
-      `+${pack.tokens} token${pack.tokens > 1 ? 's' : ''}. Solde : ${next}.`,
-      [{ text: 'Parfait', onPress: () => router.back() }],
-    )
+    try {
+      // Bêta privée : aucun paiement réel. On crédite localement les tokens
+      // pour permettre de tester le flow rencontre. À remplacer par un
+      // checkout serveur (Stripe) avant la sortie publique.
+      const next = await addTokens(pack.tokens)
+      setBalance(next)
+      Alert.alert(
+        'Tokens de test crédités',
+        `+${pack.tokens} token${pack.tokens > 1 ? 's' : ''}. Solde : ${next}.\n\nAucun paiement n'a été effectué.`,
+        [{ text: 'Parfait', onPress: () => router.back() }],
+      )
+    } catch (err) {
+      console.warn('[kolmi] addTokens failed', err)
+      Alert.alert(
+        'Crédit impossible',
+        'Une erreur est survenue. Réessayez dans un instant.',
+      )
+    } finally {
+      setSubmittingId(null)
+    }
   }
 
   return (
@@ -124,7 +131,7 @@ export default function PremiumScreen() {
                 letterSpacing: 1.6,
               }}
             >
-              Tokens de rencontre
+              Bêta privée · Tokens de test
             </Text>
             <Text
               style={{
@@ -147,6 +154,27 @@ export default function PremiumScreen() {
             >
               Solde actuel : {balance === null ? '…' : `${balance} token${balance > 1 ? 's' : ''}`}.
             </Text>
+            <View
+              style={{
+                marginTop: kolmiSpace.xs,
+                padding: kolmiSpace.sm,
+                borderRadius: kolmiRadius.md,
+                backgroundColor: kolmiColors.bgDeep,
+                borderWidth: 1,
+                borderColor: kolmiColors.outline,
+              }}
+            >
+              <Text
+                style={{
+                  fontFamily: kolmiFonts.ui,
+                  fontSize: 13,
+                  color: kolmiColors.textBody,
+                  lineHeight: 19,
+                }}
+              >
+                Pendant la bêta, les tokens sont simulés. Aucun paiement n&apos;est effectué.
+              </Text>
+            </View>
           </View>
 
           <View style={{ gap: kolmiSpace.md, marginTop: kolmiSpace.sm }}>
@@ -199,11 +227,13 @@ export default function PremiumScreen() {
                   <Text
                     style={{
                       fontFamily: kolmiFonts.uiSemiBold,
-                      fontSize: 18,
-                      color: kolmiColors.text,
+                      fontSize: 13,
+                      color: kolmiColors.textSecondary,
+                      textTransform: 'uppercase',
+                      letterSpacing: 1.2,
                     }}
                   >
-                    {pack.price}
+                    Achat simulé
                   </Text>
                 </View>
 
@@ -268,7 +298,7 @@ export default function PremiumScreen() {
                   >
                     {submittingId === pack.id
                       ? 'Crédit en cours…'
-                      : `Recharger ${pack.tokens} tokens`}
+                      : `Créditer ${pack.tokens} tokens de test`}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -285,7 +315,7 @@ export default function PremiumScreen() {
               lineHeight: 19,
             }}
           >
-            Paiement Stripe en cours d&apos;intégration. Les tokens crédités ici sont stockés localement le temps de la beta.
+            Bêta privée — les tokens crédités sont des tokens de test, stockés localement sur cet appareil.
           </Text>
         </ScrollView>
       </SafeAreaView>

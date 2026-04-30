@@ -70,9 +70,9 @@ export default function VocalScreen() {
               </Svg>
             </View>
             <View style={styles.cardContent}>
-              <Text style={styles.cardTitle}>Utilisé par l'IA Kolmi</Text>
+              <Text style={styles.cardTitle}>Pour le matchmaker</Text>
               <Text style={styles.cardText}>
-                On analyse ton vocal pour générer des sujets de conversation personnalisés quand tu matchs avec quelqu'un.
+                Votre vocal aide Kolmi à mieux comprendre votre manière de vous présenter. Il pourra être utilisé plus tard par le matchmaker pour affiner les profils et les lieux proposés.
               </Text>
             </View>
           </View>
