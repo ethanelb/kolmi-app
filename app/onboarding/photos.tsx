@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Alert, Linking } from 'react-native'
 import Svg, { Path } from 'react-native-svg'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
+import * as ImagePicker from 'expo-image-picker'
 import {
   kolmiColors,
   kolmiSpace,
@@ -15,6 +16,24 @@ import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import { tapLight, tapMedium } from '@/lib/kolmi/haptics'
 import { getKolmiProfile, saveKolmiProfile } from '@/lib/kolmi/storage'
 import { safePersist } from '@/lib/kolmi/safePersist'
+
+const ensurePhotoLibraryPermission = async (): Promise<boolean> => {
+  const current = await ImagePicker.getMediaLibraryPermissionsAsync()
+  if (current.granted) return true
+  if (current.canAskAgain) {
+    const next = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (next.granted) return true
+  }
+  Alert.alert(
+    'Accès aux photos requis',
+    "Kolmi a besoin d'accéder à ta bibliothèque pour ajouter des photos à ton profil. Active l'autorisation dans les réglages pour continuer.",
+    [
+      { text: 'Annuler', style: 'cancel' },
+      { text: 'Ouvrir les paramètres', onPress: () => Linking.openSettings() },
+    ],
+  )
+  return false
+}
 
 const SIGNUP_TOTAL_STEPS = 11
 const { width } = Dimensions.get('window')
@@ -40,7 +59,9 @@ export default function PhotosScreen() {
   const filledCount = photos.filter(Boolean).length
   const isValid = filledCount >= 4
 
-  const addPhoto = (index: number) => {
+  const addPhoto = async (index: number) => {
+    const ok = await ensurePhotoLibraryPermission()
+    if (!ok) return
     const mockPhotos = [
       'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400',
       'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400',
@@ -84,7 +105,7 @@ export default function PhotosScreen() {
                   ]}
                   onPress={() => {
                     tapLight()
-                    addPhoto(i)
+                    void addPhoto(i)
                   }}
                   activeOpacity={0.75}
                 >

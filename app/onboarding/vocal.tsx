@@ -1,9 +1,10 @@
 import React, { useState } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Linking } from 'react-native'
 import Svg, { Circle, Path, Rect } from 'react-native-svg'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import * as Haptics from 'expo-haptics'
+import { Audio } from 'expo-av'
 import {
   kolmiColors,
   kolmiSpace,
@@ -17,6 +18,24 @@ import { useAudioRecorder } from '@/hooks/useAudioRecorder'
 import { formatDuration } from '@/lib/utils'
 import { saveKolmiProfile } from '@/lib/kolmi/storage'
 import { safePersist } from '@/lib/kolmi/safePersist'
+
+const ensureMicrophonePermission = async (): Promise<boolean> => {
+  const current = await Audio.getPermissionsAsync()
+  if (current.granted) return true
+  if (current.canAskAgain) {
+    const next = await Audio.requestPermissionsAsync()
+    if (next.granted) return true
+  }
+  Alert.alert(
+    'Accès au micro requis',
+    "Kolmi a besoin du micro pour enregistrer ta présentation vocale. Active l'autorisation dans les réglages pour continuer.",
+    [
+      { text: 'Annuler', style: 'cancel' },
+      { text: 'Ouvrir les paramètres', onPress: () => Linking.openSettings() },
+    ],
+  )
+  return false
+}
 
 const SIGNUP_TOTAL_STEPS = 11
 
@@ -113,7 +132,9 @@ export default function VocalScreen() {
                 </Text>
 
                 <TouchableOpacity
-                  onPressIn={() => {
+                  onPressIn={async () => {
+                    const ok = await ensureMicrophonePermission()
+                    if (!ok) return
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
                     recorder.start()
                   }}
