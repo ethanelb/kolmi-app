@@ -2,6 +2,7 @@ import React, { useEffect } from 'react'
 import { Text, View, type ViewStyle } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { kolmiColors, kolmiFonts, kolmiRadius } from '@/constants/kolmiTheme'
+import KolmiWordmark from '@/components/kolmi/KolmiWordmark'
 
 type Props = {
   height: number
@@ -78,17 +79,7 @@ export default function ProfilePhotoPlaceholder({
             </Text>
           </View>
         ) : (
-          <Text
-            style={{
-              fontFamily: kolmiFonts.script,
-              fontSize: Math.min(height * 0.18, 52),
-              color: kolmiColors.accent,
-              letterSpacing: -0.3,
-              includeFontPadding: false,
-            }}
-          >
-            kolmi
-          </Text>
+          <KolmiWordmark size={Math.min(height * 0.18, 52)} color={kolmiColors.accent} />
         )}
       </LinearGradient>
     </View>
