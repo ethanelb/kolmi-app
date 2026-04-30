@@ -29,6 +29,8 @@ import type { Meeting } from '@/lib/kolmi/types'
 const SLOT_BG_OFF = '#FAF8F5'
 const SLOT_BG_ON = '#FBEFEF'
 
+const AnimatedSvg = Animated.createAnimatedComponent(Svg)
+
 const SLOT_OPTIONS = [
   'Mardi 19h00',
   'Mercredi 19h30',
@@ -446,17 +448,21 @@ function SlotButton({ label, isSelected, onPress }: SlotButtonProps) {
             checkboxStyle,
           ]}
         >
-          <Animated.View style={checkmarkStyle}>
-            <Svg width={11} height={9} viewBox="0 0 11 9" fill="none">
-              <Path
-                d="M1 4.5L4 7.5L10 1.5"
-                stroke={kolmiColors.white}
-                strokeWidth={1.8}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </Svg>
-          </Animated.View>
+          <AnimatedSvg
+            width={11}
+            height={9}
+            viewBox="0 0 11 9"
+            fill="none"
+            style={checkmarkStyle}
+          >
+            <Path
+              d="M1 4.5L4 7.5L10 1.5"
+              stroke={kolmiColors.white}
+              strokeWidth={1.8}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </AnimatedSvg>
         </Animated.View>
       </TouchableOpacity>
     </Animated.View>
