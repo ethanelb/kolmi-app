@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native'
+import { Alert, View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native'
 import Svg, { Path } from 'react-native-svg'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
@@ -81,9 +81,30 @@ export default function PreferencesScreen() {
                     key={age}
                     style={[styles.ageChip, active && styles.ageChipActive]}
                     onPress={() => {
-                      select()
-                      if (age <= maxAge - 2) setMinAge(age)
-                      else if (age >= minAge + 2) setMaxAge(age)
+                      try {
+                        if (age === minAge || age === maxAge) {
+                          select()
+                          return
+                        }
+                        if (age <= maxAge - 2) {
+                          select()
+                          setMinAge(age)
+                        } else if (age >= minAge + 2) {
+                          select()
+                          setMaxAge(age)
+                        } else {
+                          Alert.alert(
+                            'Tranche trop étroite',
+                            "Garde au moins 2 ans d'écart entre l'âge minimum et l'âge maximum.",
+                          )
+                        }
+                      } catch (err) {
+                        console.warn('[kolmi] age update failed', err)
+                        Alert.alert(
+                          'Action impossible',
+                          "Impossible de modifier la tranche d'âge. Réessaie dans un instant.",
+                        )
+                      }
                     }}
                     activeOpacity={0.75}
                   >
@@ -106,8 +127,16 @@ export default function PreferencesScreen() {
                     key={d}
                     style={[styles.chip, active && styles.chipActive]}
                     onPress={() => {
-                      select()
-                      setDistance(d)
+                      try {
+                        select()
+                        setDistance(d)
+                      } catch (err) {
+                        console.warn('[kolmi] distance update failed', err)
+                        Alert.alert(
+                          'Action impossible',
+                          "Impossible de modifier la distance. Réessaie dans un instant.",
+                        )
+                      }
                     }}
                     activeOpacity={0.75}
                   >

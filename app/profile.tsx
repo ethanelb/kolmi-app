@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   Image,
   KeyboardAvoidingView,
@@ -114,20 +115,36 @@ export default function ProfileScreen() {
   const isValid = firstName.trim().length >= 2 && filledCount >= 4
 
   const cyclePhotoSlot = (index: number) => {
-    select()
-    setPhotos((prev) => {
-      const next = [...prev]
-      const current = next[index]
-      if (!current) {
-        const used = new Set(next.filter((p): p is string => Boolean(p)))
-        const candidate = MOCK_PHOTOS.find((u) => !used.has(u)) ?? MOCK_PHOTOS[index % MOCK_PHOTOS.length]
-        next[index] = candidate
-      } else {
-        next[index] = null
-      }
-      return next
-    })
-    setDirty(true)
+    const current = photos[index]
+    if (current && photos.filter(Boolean).length <= 4) {
+      Alert.alert(
+        'Photo requise',
+        "Tu dois garder au moins 4 photos sur ton profil. Ajoute une autre photo avant de retirer celle-ci.",
+      )
+      return
+    }
+    try {
+      select()
+      setPhotos((prev) => {
+        const next = [...prev]
+        const slot = next[index]
+        if (!slot) {
+          const used = new Set(next.filter((p): p is string => Boolean(p)))
+          const candidate = MOCK_PHOTOS.find((u) => !used.has(u)) ?? MOCK_PHOTOS[index % MOCK_PHOTOS.length]
+          next[index] = candidate
+        } else {
+          next[index] = null
+        }
+        return next
+      })
+      setDirty(true)
+    } catch (err) {
+      console.warn('[kolmi] photo slot update failed', err)
+      Alert.alert(
+        'Action impossible',
+        "La modification de cette photo n'a pas pu être appliquée. Réessaie dans un instant.",
+      )
+    }
   }
 
   const setLifestyleAnswer = (qid: string, opt: string) => {
