@@ -285,6 +285,10 @@ export default function ProfileTabScreen() {
               label="Modifier mon orientation"
               onPress={() => router.push('/profile/edit-orientation')}
             />
+            <ActionRow
+              label="Modifier mon style de vie"
+              onPress={() => router.push('/profile/edit-lifestyle')}
+            />
           </Section>
 
           {/* Préférences */}
