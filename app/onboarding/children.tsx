@@ -68,7 +68,7 @@ export default function ChildrenScreen() {
               if (!isValid) return
               tapMedium()
               const ok = await safePersist(() =>
-                saveKolmiProfile({ hasChildren: selected!, wantsChildren: undefined }),
+                saveKolmiProfile({ hasChildren: selected! }),
               )
               if (!ok) return
               router.push('/onboarding/notifications')

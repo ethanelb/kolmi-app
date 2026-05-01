@@ -28,10 +28,16 @@ export default function AnimatedCounter({ value, durationMs = kolmiMotion.durati
     })
   }, [value, durationMs, sv])
 
+  // `prepare` arrondit dans le worklet : `react` ne se déclenche que quand
+  // l'entier change (≈ 5 fois sur 600 ms d'anim) au lieu de toutes les
+  // frames. Évite ~55 appels bridge/sec inutiles pendant l'animation des
+  // tokens.
   useAnimatedReaction(
-    () => sv.value,
-    (current) => {
-      runOnJS(setDisplay)(Math.round(current))
+    () => Math.round(sv.value),
+    (current, previous) => {
+      if (current !== previous) {
+        runOnJS(setDisplay)(current)
+      }
     },
     [],
   )

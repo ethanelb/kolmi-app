@@ -176,7 +176,10 @@ export default function MatchmakerChat() {
         return
       }
 
-      setQuestionIndex((prev) => (prev === null ? null : prev + 1))
+      // À ce stade `questionIndex` est garanti non-null (early-return en
+       // haut de la fonction), donc `prev` ne peut être null qu'au premier
+       // mount. Un fallback à 0 reste défensif sans masquer de bug logique.
+      setQuestionIndex((prev) => (prev ?? 0) + 1)
       setLocked(false)
     }, TYPING_MS)
   }

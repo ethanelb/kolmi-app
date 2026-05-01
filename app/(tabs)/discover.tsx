@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { ScrollView, View, Text, TouchableOpacity, Image } from 'react-native'
+import { ScrollView, View, Text, TouchableOpacity } from 'react-native'
+import { Image } from 'expo-image'
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'

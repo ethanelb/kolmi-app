@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
-import { ActivityIndicator, Image, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { Image } from 'expo-image'
 import Animated, { FadeIn, FadeInDown, FadeInUp, ZoomIn } from 'react-native-reanimated'
 import Svg, { Path } from 'react-native-svg'
 import { SafeAreaView } from 'react-native-safe-area-context'

@@ -13,7 +13,9 @@ import {
   Inter_500Medium,
   Inter_600SemiBold,
 } from '@expo-google-fonts/inter'
-import { Caveat_600SemiBold } from '@expo-google-fonts/caveat'
+// `kolmiFonts.script` (Caveat) référencé dans le thème mais n'est utilisé
+// par aucun composant — on évite d'embarquer la font sur le cold start.
+// Si on l'utilise plus tard, ré-importer ici.
 import { HomemadeApple_400Regular } from '@expo-google-fonts/homemade-apple'
 import {
   Fraunces_400Regular,
@@ -43,7 +45,6 @@ export default function RootLayout() {
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
-    Caveat_600SemiBold,
     HomemadeApple_400Regular,
     Fraunces_400Regular,
     Fraunces_500Medium,
@@ -125,13 +126,10 @@ export default function RootLayout() {
         <Stack.Screen name="meeting/schedule/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="meeting/confirm/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="premium/index" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="profile" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="profile/edit-birthday" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="profile/edit-gender" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="profile/edit-height" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="profile/edit-orientation" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="profile/edit-photos" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="profile/edit-lifestyle" options={{ animation: 'slide_from_right' }} />
       </Stack>
     </GestureHandlerRootView>
   )

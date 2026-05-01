@@ -49,6 +49,11 @@ export default function SelectionScreen() {
     setPassed((prev) => (prev.includes(profileId) ? prev : [...prev, profileId]))
   }
 
+  const handleViewProfile = React.useCallback(
+    (id: string) => router.push(`/matches/${id}`),
+    [router],
+  )
+
   return (
     <View style={{ flex: 1, backgroundColor: kolmiColors.bg }}>
       <GrainOverlay />
@@ -139,7 +144,7 @@ export default function SelectionScreen() {
                 >
                   <SelectedProfileCard
                     profile={profile}
-                    onPress={() => router.push(`/matches/${profile.id}`)}
+                    onPress={handleViewProfile}
                   />
                   <View style={{ flexDirection: 'row', gap: kolmiSpace.xs }}>
                     <TouchableOpacity

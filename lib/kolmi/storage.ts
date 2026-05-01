@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { dnaCategories } from '@/data/kolmiDna'
+import { kolmiQuestions } from '@/data/kolmiQuestions'
 import type { KolmiAnswer, KolmiDnaResult, Meeting } from './types'
 
 const PROGRESS_KEY = 'kolmi.progress'
@@ -33,11 +34,9 @@ export type KolmiProfile = {
   orientations?: string[]
   photoUrls?: string[]
   locationCity?: string
-  bio?: string
   education?: string
   occupation?: string
   hasChildren?: string
-  wantsChildren?: string
   origins?: string[]
   religion?: string
   selfieVerifUrl?: string
@@ -82,7 +81,23 @@ export async function saveKolmiProgress(progress: Partial<KolmiProgress>) {
 }
 
 export async function getKolmiAnswers(): Promise<KolmiAnswer[]> {
-  return getJson<KolmiAnswer[]>(ANSWERS_KEY, [])
+  const raw = await getJson<KolmiAnswer[]>(ANSWERS_KEY, [])
+  // Migration : si toutes les réponses stockées référencent des questions
+  // qui n'existent plus dans le registre actuel (ancien système 16-Q), on
+  // wipe pour libérer de la place + éviter de garder des données mortes.
+  // On évite le wipe partiel pour ne pas perdre une réponse en cours d'un
+  // test rejoué.
+  const validIds = new Set(kolmiQuestions.map((q) => q.id))
+  const valid = raw.filter((a) => validIds.has(a.questionId))
+  if (raw.length > 0 && valid.length === 0) {
+    try {
+      await AsyncStorage.removeItem(ANSWERS_KEY)
+    } catch (err) {
+      console.warn('[kolmi] failed to wipe stale answers', err)
+    }
+    return []
+  }
+  return valid
 }
 
 // Mutations critiques : on laisse l'erreur AsyncStorage remonter au caller
@@ -104,34 +119,70 @@ export async function saveKolmiAnswer(answer: KolmiAnswer) {
   }
 }
 
+// Cache mémoire du résultat DNA. Lu sur chaque focus du tab Profil et sur
+// l'écran résultat — on évite de retoucher AsyncStorage à chaque switch.
+// Sentinelle séparée du `null` métier (pas de DNA) pour distinguer
+// "pas hydraté" de "hydraté → null".
+let _dnaCache: KolmiDnaResult | null | undefined = undefined
+
 export async function saveKolmiDnaResult(result: KolmiDnaResult) {
+  _dnaCache = result
   await setJson(DNA_RESULT_KEY, result)
   // TODO Supabase sync later
 }
 
 export async function getKolmiDnaResult(): Promise<KolmiDnaResult | null> {
+  if (_dnaCache !== undefined) return _dnaCache
   const stored = await getJson<KolmiDnaResult | null>(DNA_RESULT_KEY, null)
-  if (!stored) return null
+  if (!stored) {
+    _dnaCache = null
+    return null
+  }
   // Migration : si le résultat stocké date de l'ancien système (16 Maisons,
   // 10 dimensions) son `categoryId` n'existe plus dans le nouveau registre
   // 8-Maisons. On nettoie + on demande à l'utilisateur de refaire le test.
+  // try/catch : on tolère un échec de removeItem (storage saturé, etc.) —
+  // mieux vaut renvoyer null et laisser l'utilisateur passer le matchmaker
+  // que crasher au boot sur un wipe ratée.
   if (!dnaCategories[stored.categoryId]) {
-    await AsyncStorage.removeItem(DNA_RESULT_KEY)
-    await AsyncStorage.removeItem(ANSWERS_KEY)
+    try {
+      await AsyncStorage.multiRemove([DNA_RESULT_KEY, ANSWERS_KEY])
+    } catch (err) {
+      console.warn('[kolmi] failed to wipe stale dna_result', err)
+    }
+    _dnaCache = null
     return null
   }
+  _dnaCache = stored
   return stored
 }
 
+// Cache mémoire du profil. L'onboarding navigue d'un écran à l'autre en
+// chaîne, et chaque écran appelait `getKolmiProfile()` au mount → un read
+// AsyncStorage (~10-30 ms) par écran. Le cache hydrate au premier appel
+// puis sert toutes les lectures suivantes en O(1). Toute écriture (via
+// `saveKolmiProfile`) met à jour le cache atomiquement avant la persistance.
+let _profileCache: KolmiProfile | null = null
+
 export async function getKolmiProfile(): Promise<KolmiProfile> {
-  return getJson<KolmiProfile>(PROFILE_KEY, {})
+  if (_profileCache) return _profileCache
+  _profileCache = await getJson<KolmiProfile>(PROFILE_KEY, {})
+  return _profileCache
 }
 
 export async function saveKolmiProfile(patch: Partial<KolmiProfile>) {
   const current = await getKolmiProfile()
-  await setJson(PROFILE_KEY, { ...current, ...patch })
+  const next = { ...current, ...patch }
+  // Mise à jour du cache d'abord pour que toute lecture concurrente voie
+  // la valeur la plus récente, même si AsyncStorage prend du temps.
+  _profileCache = next
+  await setJson(PROFILE_KEY, next)
   // TODO Supabase sync later
 }
+
+// Cache mémoire des préférences. Sentinelle `undefined` distincte de
+// `null` métier pour différencier "pas hydraté" de "hydraté → absent".
+let _prefsCache: KolmiPreferences | null | undefined = undefined
 
 export async function saveKolmiPreferences(patch: Partial<KolmiPreferences>) {
   // Merge plutôt qu'overwrite : edit-preferences ne touche que minAge/maxAge/
@@ -141,29 +192,46 @@ export async function saveKolmiPreferences(patch: Partial<KolmiPreferences>) {
     maxAge: 35,
     distance: '25 km',
   }
-  await setJson(PREFERENCES_KEY, { ...current, ...patch })
+  const next = { ...current, ...patch }
+  _prefsCache = next
+  await setJson(PREFERENCES_KEY, next)
   // TODO Supabase sync later
 }
 
 export async function getKolmiPreferences(): Promise<KolmiPreferences | null> {
-  return getJson<KolmiPreferences | null>(PREFERENCES_KEY, null)
+  if (_prefsCache !== undefined) return _prefsCache
+  _prefsCache = await getJson<KolmiPreferences | null>(PREFERENCES_KEY, null)
+  return _prefsCache
 }
 
 // ─── Tokens (paid meeting requests) ──────────────────────────────────
 
+// Cache mémoire du nombre de tokens. Lu sur chaque focus du tab Profil et
+// avant chaque demande de rencontre — coûteux de retoucher AsyncStorage à
+// chaque fois. -1 sentinelle = pas hydraté (les tokens réels sont >= 0).
+let _tokensCache = -1
+
 export async function getTokens(): Promise<number> {
+  if (_tokensCache >= 0) return _tokensCache
   const raw = await AsyncStorage.getItem(TOKENS_KEY)
-  if (raw === null) return 0
+  if (raw === null) {
+    _tokensCache = 0
+    return 0
+  }
   const n = parseInt(raw, 10)
   if (!Number.isFinite(n)) {
     await AsyncStorage.removeItem(TOKENS_KEY)
+    _tokensCache = 0
     return 0
   }
+  _tokensCache = n
   return n
 }
 
 export async function setTokens(value: number) {
-  await AsyncStorage.setItem(TOKENS_KEY, String(Math.max(0, value)))
+  const sanitized = Math.max(0, value)
+  _tokensCache = sanitized
+  await AsyncStorage.setItem(TOKENS_KEY, String(sanitized))
 }
 
 export async function addTokens(delta: number): Promise<number> {
@@ -272,6 +340,12 @@ export async function getPushToken(): Promise<string | null> {
 }
 
 export async function resetKolmiState() {
+  // Invalide tous les caches mémoire avant le wipe disque pour qu'aucun
+  // appel concurrent ne ré-hydrate sur des données mortes.
+  _profileCache = null
+  _dnaCache = undefined
+  _prefsCache = undefined
+  _tokensCache = -1
   await AsyncStorage.multiRemove([
     PROGRESS_KEY,
     ANSWERS_KEY,

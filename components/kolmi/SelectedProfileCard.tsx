@@ -1,18 +1,22 @@
-import React from 'react'
-import { Image, Pressable, Text, View } from 'react-native'
+import React, { useCallback } from 'react'
+import { Pressable, Text, View } from 'react-native'
+import { Image } from 'expo-image'
 import { kolmiColors, kolmiFonts, kolmiRadius } from '@/constants/kolmiTheme'
 import ProfilePhotoPlaceholder from '@/components/kolmi/ProfilePhotoPlaceholder'
 import type { SelectedProfile } from '@/data/mockSelectedProfiles'
 
 type Props = {
   profile: SelectedProfile
-  onPress: () => void
+  // Reçoit l'id pour que le parent puisse stabiliser le handler avec
+  // `useCallback` — sinon `React.memo` est défait par une arrow inline.
+  onPress: (id: string) => void
 }
 
 function SelectedProfileCard({ profile, onPress }: Props) {
+  const handlePress = useCallback(() => onPress(profile.id), [onPress, profile.id])
   return (
     <Pressable
-      onPress={onPress}
+      onPress={handlePress}
       style={({ pressed }) => ({
         backgroundColor: '#FAF8F5',
         borderRadius: kolmiRadius.lg,

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Image } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native'
+import { Image } from 'expo-image'
 import Svg, { Path } from 'react-native-svg'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
