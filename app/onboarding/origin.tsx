@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native'
 import Svg, { Path } from 'react-native-svg'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
@@ -11,29 +11,38 @@ import {
   kolmiPaddingX,
 } from '@/constants/kolmiTheme'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
-import { select, tapMedium } from '@/lib/kolmi/haptics'
+import { tapMedium, select } from '@/lib/kolmi/haptics'
 import { getKolmiProfile, saveKolmiProfile } from '@/lib/kolmi/storage'
 import { safePersist } from '@/lib/kolmi/safePersist'
 
 const OPTIONS = [
-  { id: 'men', label: 'Des hommes' },
-  { id: 'women', label: 'Des femmes' },
-  { id: 'other', label: 'Autre' },
+  'Afrique subsaharienne',
+  'Europe / Caucasien',
+  'Asie de l’Est',
+  'Hispanique / Amérique latine',
+  'Maghreb / Moyen-Orient',
+  'Amérindien',
+  'Océanie / Pacifique',
+  'Asie du Sud',
+  'Asie du Sud-Est',
+  'Autre',
+  'Préfère ne pas dire',
 ]
 
-export default function EditOrientationScreen() {
+export default function OriginScreen() {
   const router = useRouter()
   const [selected, setSelected] = useState<string[]>([])
 
   useEffect(() => {
     getKolmiProfile().then((p) => {
-      if (p.orientations?.length) setSelected(p.orientations)
+      if (p.origins?.length) setSelected(p.origins)
     })
   }, [])
 
-  const toggle = (id: string) => {
-    setSelected(prev =>
-      prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]
+  const toggle = (o: string) => {
+    select()
+    setSelected((prev) =>
+      prev.includes(o) ? prev.filter((x) => x !== o) : [...prev, o],
     )
   }
 
@@ -43,46 +52,25 @@ export default function EditOrientationScreen() {
     <View style={styles.root}>
       <GrainOverlay />
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            style={{ paddingVertical: 4 }}
-          >
-            <Svg width={10} height={18} viewBox="0 0 10 18" fill="none">
-              <Path
-                d="M9 1L1 9L9 17"
-                stroke={kolmiColors.text}
-                strokeWidth={1.8}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </Svg>
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
+            <Text style={styles.backText}>‹</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.body}>
-          <Text style={styles.title}>{'Qui voulez-vous\nrencontrer ?'}</Text>
-          <Text style={styles.subtitle}>
-            Vous pouvez sélectionner plusieurs options
-          </Text>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+          <Text style={styles.title}>{'Tes\norigines ?'}</Text>
 
           <View style={styles.options}>
-            {OPTIONS.map(opt => {
-              const active = selected.includes(opt.id)
+            {OPTIONS.map((o) => {
+              const active = selected.includes(o)
               return (
                 <TouchableOpacity
-                  key={opt.id}
+                  key={o}
                   style={[styles.option, active && styles.optionActive]}
-                  onPress={() => {
-                    select()
-                    toggle(opt.id)
-                  }}
+                  onPress={() => toggle(o)}
                   activeOpacity={0.75}
                 >
-                  <Text style={[styles.optionText, active && styles.optionTextActive]}>
-                    {opt.label}
-                  </Text>
                   <View style={[styles.checkbox, active && styles.checkboxActive]}>
                     {active && (
                       <Svg width={12} height={9} viewBox="0 0 12 9" fill="none">
@@ -96,11 +84,12 @@ export default function EditOrientationScreen() {
                       </Svg>
                     )}
                   </View>
+                  <Text style={[styles.optionText, active && styles.optionTextActive]}>{o}</Text>
                 </TouchableOpacity>
               )
             })}
           </View>
-        </View>
+        </ScrollView>
 
         <View style={styles.footer}>
           <TouchableOpacity
@@ -109,15 +98,15 @@ export default function EditOrientationScreen() {
               if (!isValid) return
               tapMedium()
               const ok = await safePersist(() =>
-                saveKolmiProfile({ orientations: selected }),
+                saveKolmiProfile({ origins: selected }),
               )
               if (!ok) return
-              router.back()
+              router.push('/onboarding/religion')
             }}
             activeOpacity={isValid ? 0.85 : 1}
           >
             <Text style={[styles.ctaText, !isValid && styles.ctaTextDisabled]}>
-              Enregistrer
+              Continuer
             </Text>
           </TouchableOpacity>
         </View>
@@ -129,16 +118,17 @@ export default function EditOrientationScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: kolmiColors.bg },
   safe: { flex: 1 },
-  header: {
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: kolmiPaddingX,
-    paddingTop: kolmiSpace.xs,
-    paddingBottom: kolmiSpace.sm,
+    paddingTop: kolmiSpace.sm,
   },
-  body: {
-    flex: 1,
-    paddingHorizontal: kolmiPaddingX,
-    paddingTop: kolmiSpace.lg,
-  },
+  backBtn: { padding: kolmiSpace.xs },
+  backText: { fontFamily: kolmiFonts.serif, fontSize: 28, color: kolmiColors.text, lineHeight: 28 },
+  scroll: { flex: 1 },
+  scrollContent: { paddingHorizontal: kolmiPaddingX, paddingTop: kolmiSpace.md, paddingBottom: kolmiSpace.lg },
   title: {
     fontFamily: kolmiFonts.serif,
     fontSize: 36,
@@ -146,61 +136,46 @@ const styles = StyleSheet.create({
     lineHeight: 42,
     letterSpacing: -0.4,
   },
-  subtitle: {
-    fontFamily: kolmiFonts.ui,
-    fontSize: 14,
-    color: kolmiColors.textBody,
-    lineHeight: 21,
-    marginTop: kolmiSpace.sm,
-  },
-  options: {
-    gap: kolmiSpace.sm,
-    marginTop: kolmiSpace.xl,
-  },
+  options: { gap: kolmiSpace.sm, marginTop: kolmiSpace.xl },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: kolmiSpace.lg,
+    paddingHorizontal: kolmiSpace.md,
     paddingVertical: kolmiSpace.md,
     borderRadius: kolmiRadius.pill,
     borderWidth: 1,
     borderColor: kolmiColors.outline,
     minHeight: 56,
+    gap: kolmiSpace.sm,
   },
   optionActive: {
     borderColor: kolmiColors.accent,
     borderWidth: 1.5,
     backgroundColor: kolmiColors.bgDeep,
   },
-  optionText: {
-    fontFamily: kolmiFonts.uiMedium,
-    fontSize: 16,
-    color: kolmiColors.text,
-    flex: 1,
-    paddingRight: kolmiSpace.sm,
-  },
-  optionTextActive: {
-    fontFamily: kolmiFonts.uiSemiBold,
-    color: kolmiColors.accent,
-  },
   checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 6,
     borderWidth: 1.5,
     borderColor: kolmiColors.outline,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'transparent',
   },
   checkboxActive: {
-    backgroundColor: kolmiColors.accent,
     borderColor: kolmiColors.accent,
+    backgroundColor: kolmiColors.accent,
   },
-  footer: {
-    paddingHorizontal: kolmiPaddingX,
-    paddingBottom: kolmiSpace.xl,
+  optionText: {
+    flex: 1,
+    fontFamily: kolmiFonts.uiMedium,
+    fontSize: 15,
+    color: kolmiColors.text,
+    textAlign: 'center',
   },
+  optionTextActive: { fontFamily: kolmiFonts.uiSemiBold, color: kolmiColors.accent },
+  footer: { paddingHorizontal: kolmiPaddingX, paddingBottom: kolmiSpace.xl },
   cta: {
     height: 56,
     borderRadius: kolmiRadius.pill,
@@ -213,18 +188,7 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     elevation: 4,
   },
-  ctaDisabled: {
-    backgroundColor: kolmiColors.surfaceSoft,
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  ctaText: {
-    fontFamily: kolmiFonts.uiSemiBold,
-    fontSize: 16,
-    color: kolmiColors.white,
-    letterSpacing: 0.2,
-  },
-  ctaTextDisabled: {
-    color: kolmiColors.textMuted,
-  },
+  ctaDisabled: { backgroundColor: kolmiColors.surfaceSoft, shadowOpacity: 0, elevation: 0 },
+  ctaText: { fontFamily: kolmiFonts.uiSemiBold, fontSize: 16, color: kolmiColors.white, letterSpacing: 0.2 },
+  ctaTextDisabled: { color: kolmiColors.textMuted },
 })

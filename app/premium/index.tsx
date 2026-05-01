@@ -37,7 +37,7 @@ const packs: Pack[] = [
     perks: [
       '8 demandes de rencontre',
       'Sélection priorisée par le matchmaker',
-      '8 questions bonus pour affiner votre Maison',
+      'Lecture détaillée de votre Maison',
     ],
     highlight: true,
   },

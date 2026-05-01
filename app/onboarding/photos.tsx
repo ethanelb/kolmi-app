@@ -25,11 +25,13 @@ import { getKolmiProfile, saveKolmiProfile } from '@/lib/kolmi/storage'
 import { safePersist } from '@/lib/kolmi/safePersist'
 import { pickProfilePhoto } from '@/lib/kolmi/photoPicker'
 
-const SIGNUP_TOTAL_STEPS = 11
+const SIGNUP_TOTAL_STEPS = 10
 const { width } = Dimensions.get('window')
 const SLOT_GAP = 10
 const COLS = 3
 const ROWS = 2
+const TOTAL_SLOTS = COLS * ROWS
+const MIN_PHOTOS = 2
 const SLOT_SIZE = (width - kolmiPaddingX * 2 - SLOT_GAP * 2) / COLS
 const SLOT_HEIGHT = SLOT_SIZE * 1.3
 
@@ -156,9 +158,9 @@ export default function PhotosScreen() {
   useEffect(() => {
     getKolmiProfile().then((p) => {
       if (p.photoUrls?.length) {
-        const slots: (string | null)[] = [null, null, null, null, null, null]
+        const slots: (string | null)[] = Array(TOTAL_SLOTS).fill(null)
         p.photoUrls.forEach((url, i) => {
-          if (i < 6) slots[i] = url
+          if (i < TOTAL_SLOTS) slots[i] = url
         })
         setPhotos(slots)
       }
@@ -166,7 +168,7 @@ export default function PhotosScreen() {
   }, [])
 
   const filledCount = photos.filter(Boolean).length
-  const isValid = filledCount >= 4
+  const isValid = filledCount >= MIN_PHOTOS
 
   const addPhoto = async (index: number) => {
     const uri = await pickProfilePhoto()
@@ -187,7 +189,7 @@ export default function PhotosScreen() {
   }
 
   const reorderPhotos = (from: number, to: number) => {
-    if (from === to || from < 0 || to < 0 || from >= 6 || to >= 6) return
+    if (from === to || from < 0 || to < 0 || from >= TOTAL_SLOTS || to >= TOTAL_SLOTS) return
     setPhotos((prev) => {
       const next = [...prev]
       const tmp = next[from]
@@ -203,7 +205,7 @@ export default function PhotosScreen() {
       <GrainOverlay />
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <SignupHeader
-          step={9}
+          step={8}
           total={SIGNUP_TOTAL_STEPS}
           onBack={() => router.back()}
         />
@@ -211,9 +213,9 @@ export default function PhotosScreen() {
         <View style={styles.body}>
           <Text style={styles.title}>{'Ajoute\ntes photos'}</Text>
           <Text style={styles.subtitle}>
-            {filledCount < 4
-              ? `Encore ${4 - filledCount} photo${4 - filledCount > 1 ? 's' : ''} requise${4 - filledCount > 1 ? 's' : ''}`
-              : 'Super ! Tu peux ajouter jusqu\'à 6 photos'}
+            {filledCount < MIN_PHOTOS
+              ? `Encore ${MIN_PHOTOS - filledCount} photo${MIN_PHOTOS - filledCount > 1 ? 's' : ''} requise${MIN_PHOTOS - filledCount > 1 ? 's' : ''}`
+              : 'Parfait ! Tu peux continuer'}
           </Text>
 
           <View style={styles.grid}>
@@ -222,7 +224,7 @@ export default function PhotosScreen() {
                 key={i}
                 index={i}
                 photo={photo}
-                isRequired={i < 4}
+                isRequired={i < MIN_PHOTOS}
                 onAdd={(idx) => {
                   void addPhoto(idx)
                 }}
@@ -233,7 +235,7 @@ export default function PhotosScreen() {
           </View>
 
           <Text style={styles.hint}>
-            Maintiens une photo et glisse pour réorganiser · 4 photos minimum
+            Maintiens une photo et glisse pour réorganiser · {MIN_PHOTOS} photos minimum
           </Text>
         </View>
 
@@ -249,7 +251,7 @@ export default function PhotosScreen() {
                 }),
               )
               if (!ok) return
-              router.push('/onboarding/vocal')
+              router.push('/onboarding/selfie')
             }}
             activeOpacity={isValid ? 0.85 : 1}
           >

@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { dnaCategories } from '@/data/kolmiDna'
 import type { KolmiAnswer, KolmiDnaResult, Meeting } from './types'
 
 const PROGRESS_KEY = 'kolmi.progress'
@@ -20,19 +21,27 @@ export type KolmiPreferences = {
   minAge: number
   maxAge: number
   distance: string
+  seekingGenders?: string[]
 }
 
 export type KolmiProfile = {
-  phone?: string
   firstName?: string
   birthDate?: { day: number; month: number; year: number }
   gender?: string
   showGenderOnProfile?: boolean
-  orientations?: string[]
   heightCm?: number
-  lifestyle?: Record<string, string>
+  orientations?: string[]
   photoUrls?: string[]
-  hasVocalIntro?: boolean
+  locationCity?: string
+  bio?: string
+  education?: string
+  occupation?: string
+  hasChildren?: string
+  wantsChildren?: string
+  origins?: string[]
+  religion?: string
+  selfieVerifUrl?: string
+  pushNotificationsEnabled?: boolean
 }
 
 const defaultProgress: KolmiProgress = {
@@ -101,7 +110,17 @@ export async function saveKolmiDnaResult(result: KolmiDnaResult) {
 }
 
 export async function getKolmiDnaResult(): Promise<KolmiDnaResult | null> {
-  return getJson<KolmiDnaResult | null>(DNA_RESULT_KEY, null)
+  const stored = await getJson<KolmiDnaResult | null>(DNA_RESULT_KEY, null)
+  if (!stored) return null
+  // Migration : si le résultat stocké date de l'ancien système (16 Maisons,
+  // 10 dimensions) son `categoryId` n'existe plus dans le nouveau registre
+  // 8-Maisons. On nettoie + on demande à l'utilisateur de refaire le test.
+  if (!dnaCategories[stored.categoryId]) {
+    await AsyncStorage.removeItem(DNA_RESULT_KEY)
+    await AsyncStorage.removeItem(ANSWERS_KEY)
+    return null
+  }
+  return stored
 }
 
 export async function getKolmiProfile(): Promise<KolmiProfile> {
@@ -114,8 +133,15 @@ export async function saveKolmiProfile(patch: Partial<KolmiProfile>) {
   // TODO Supabase sync later
 }
 
-export async function saveKolmiPreferences(prefs: KolmiPreferences) {
-  await setJson(PREFERENCES_KEY, prefs)
+export async function saveKolmiPreferences(patch: Partial<KolmiPreferences>) {
+  // Merge plutôt qu'overwrite : edit-preferences ne touche que minAge/maxAge/
+  // distance et ne doit pas effacer le seekingGenders posé par /onboarding/seeking.
+  const current = (await getKolmiPreferences()) ?? {
+    minAge: 22,
+    maxAge: 35,
+    distance: '25 km',
+  }
+  await setJson(PREFERENCES_KEY, { ...current, ...patch })
   // TODO Supabase sync later
 }
 

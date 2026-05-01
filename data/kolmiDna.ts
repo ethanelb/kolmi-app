@@ -1,249 +1,121 @@
+// 8 Maisons Kolmi, dérivées des 3 axes binaires (Intensité × Rythme × Ouverture).
+// Noms inspirés de références culturelles ou de pigments — safe niveau droit
+// d'auteur (mots étrangers, mouvements artistiques, couleurs anciennes).
+
 export type DnaCategoryId =
-  | 'gainsbourg'
-  | 'duras'
-  | 'saint_laurent'
-  | 'arda'
-  | 'simone'
-  | 'cocteau'
-  | 'varda'
-  | 'camus'
-  | 'sagan'
-  | 'piaf'
-  | 'godard'
-  | 'chagall'
-  | 'baldwin'
-  | 'kahlo'
-  | 'matisse'
-  | 'borges';
+  | 'cinabre'
+  | 'carmen'
+  | 'saudade'
+  | 'terracotta'
+  | 'montparnasse'
+  | 'bauhaus'
+  | 'bloomsbury'
+  | 'indigo'
+
+export type AxisProfile = {
+  intensity: 'ardent' | 'calm'
+  rhythm: 'fast' | 'slow'
+  openness: 'open' | 'selective'
+}
 
 export type DnaCategory = {
-  id: DnaCategoryId;
-  label: string;       // "Maison Gainsbourg" etc.
-  title: string;       // short headline
-  subtitle: string;    // tagline
-  description: string; // 1-2 paragraphs
-  traits: string[];    // 3-5 traits
-  maison: string;      // = label without "Maison " prefix
-};
-
-// NOTE: The source HTML uses a different DNA system (16 trait keywords like
-// `stable`, `passionne`, `independant`, `fusionnel`, `rayonnant`, `selectif`,
-// `calme`, `connecteur`, `traditionnel`, `familial`, `ambitieux`, `moderne`,
-// `direct`, `emotionnel`, `strategique`, `flexible`).
-// The 16 cultural "Maisons" below are NOT present in the source HTML and are
-// inferred to match each cultural reference. All entries are marked
-// `// inferred — not in HTML`.
+  id: DnaCategoryId
+  label: string // "Maison X"
+  maison: string // juste "X" — utilisé par DnaReveal pour le grand titre
+  title: string // une ligne courte, en bas de la Maison
+  subtitle: string // tagline italique
+  description: string // 1-2 paragraphes
+  traits: string[] // 3 à 5 mots-clés
+  axes: AxisProfile
+}
 
 export const dnaCategories: Record<DnaCategoryId, DnaCategory> = {
-  // inferred — not in HTML
-  gainsbourg: {
-    id: 'gainsbourg',
-    label: 'Maison Gainsbourg',
-    title: 'L\'Insolent Romantique',
-    subtitle: 'Provocation tendre, nuit longue, beauté du désordre.',
+  cinabre: {
+    id: 'cinabre',
+    label: 'Maison Cinabre',
+    maison: 'Cinabre',
+    title: "L'éclat ouvert",
+    subtitle: 'Aimer vite, fort, et le montrer.',
     description:
-      'Vous aimez l\'ambiguïté élégante : la cigarette à 3h du matin, les phrases qui restent. Votre amour est un poème un peu cabossé, jamais sage, toujours sincère. Vous préférez la vraie nuance à la perfection lisse.',
-    traits: ['Provocateur', 'Sensuel', 'Romantique cassé', 'Nocturne', 'Libre'],
-    maison: 'Gainsbourg',
+      "Le rouge vif chinois, la fête, l'éclat. Vous tombez vite, vous le dites, et vous laissez les gens entrer. Vous aimez en couleur, en lumière, et l'idée même d'amour vous met en mouvement. Beaucoup de visages possibles, peu de tiédeur.",
+    traits: ['Solaire', 'Spontané', 'Démonstratif', 'Curieux', 'Vivant'],
+    axes: { intensity: 'ardent', rhythm: 'fast', openness: 'open' },
   },
-  // inferred — not in HTML
-  duras: {
-    id: 'duras',
-    label: 'Maison Duras',
-    title: 'L\'Amante Lucide',
-    subtitle: 'Désir lent, regard clair, mots rares.',
+  carmen: {
+    id: 'carmen',
+    label: 'Maison Carmen',
+    maison: 'Carmen',
+    title: 'La passion ciblée',
+    subtitle: "Le coup de foudre qui dévore, l'exclusivité dès le départ.",
     description:
-      'Vous aimez profondément, mais sans illusion. Vos sentiments sont denses, presque écrits. Vous savez que la passion finit, et c\'est ce qui la rend précieuse. Vous donnez peu, mais ce que vous donnez compte.',
-    traits: ['Intense', 'Mélancolique', 'Lucide', 'Silencieuse', 'Profonde'],
-    maison: 'Duras',
+      "L'opéra de Bizet. Vous savez tout de suite, et quand vous savez, c'est entier. Pas de demi-mesures, pas de plan B — un seul visage qui prend toute la place. Vous attendez la même flamme en face, et rien d'autre ne vous suffit.",
+    traits: ['Passionné', 'Exclusif', 'Magnétique', 'Entier', 'Dramatique'],
+    axes: { intensity: 'ardent', rhythm: 'fast', openness: 'selective' },
   },
-  // inferred — not in HTML
-  saint_laurent: {
-    id: 'saint_laurent',
-    label: 'Maison Saint Laurent',
-    title: 'L\'Élégant Exigeant',
-    subtitle: 'Allure, rigueur, silence habité.',
+  saudade: {
+    id: 'saudade',
+    label: 'Maison Saudade',
+    maison: 'Saudade',
+    title: 'Le désir patient',
+    subtitle: 'Mélancolie douce, sensibilité partagée, attente fertile.',
     description:
-      'Vous tenez à la forme parce qu\'elle protège le fond. Votre amour passe par les détails : un mot juste, un geste retenu, un parfum qui reste. Vous attendez la même tenue chez l\'autre — la beauté est une discipline.',
-    traits: ['Élégant', 'Exigeant', 'Esthète', 'Réservé', 'Construit'],
-    maison: 'Saint Laurent',
+      "Le mot portugais qu'on ne traduit pas. Vous aimez profond mais lentement — l'idée de l'autre vous habite avant le geste. Vous restez ouvert à beaucoup, parce que la rencontre est un chemin, pas un coup de filet. Tendresse, durée, regard tourné vers ce qui pourrait être.",
+    traits: ['Sensible', 'Mélancolique', 'Profond', 'Tendre', 'Romanesque'],
+    axes: { intensity: 'ardent', rhythm: 'slow', openness: 'open' },
   },
-  // inferred — not in HTML
-  arda: {
-    id: 'arda',
-    label: 'Maison Arda',
-    title: 'Le Gardien du Foyer',
-    subtitle: 'Famille, racines, repas qui durent.',
+  terracotta: {
+    id: 'terracotta',
+    label: 'Maison Terracotta',
+    maison: 'Terracotta',
+    title: "L'intimité brûlée",
+    subtitle: 'Argile chaude, deux corps, une chambre.',
     description:
-      'Pour vous, l\'amour est un toit. Vous construisez un lieu où l\'autre peut se reposer, et vous avancez avec la patience de ceux qui savent qu\'on bâtit dans la durée. Vos valeurs sont solides, transmises, vivantes.',
-    traits: ['Familial', 'Loyal', 'Chaleureux', 'Enraciné', 'Protecteur'],
-    maison: 'Arda',
+      "Vous aimez en intérieur, en silence, en chair. Le feu existe, mais il prend le temps de monter. Quand vous choisissez quelqu'un, ce n'est pas léger : vous attendez, vous regardez, et puis vous vous donnez en entier. Peu de gens, beaucoup de profondeur.",
+    traits: ['Intense', 'Discret', 'Charnel', 'Loyal', 'Profond'],
+    axes: { intensity: 'ardent', rhythm: 'slow', openness: 'selective' },
   },
-  // inferred — not in HTML
-  simone: {
-    id: 'simone',
-    label: 'Maison Simone',
-    title: 'La Compagne Libre',
-    subtitle: 'Indépendance, conscience, égalité.',
+  montparnasse: {
+    id: 'montparnasse',
+    label: 'Maison Montparnasse',
+    maison: 'Montparnasse',
+    title: 'Le café littéraire',
+    subtitle: 'Léger, vif, social, fluide.',
     description:
-      'Vous voulez aimer sans vous perdre. Vous êtes lucide sur le couple, exigeante sur la liberté, et vous cherchez quelqu\'un qui marche à côté de vous, jamais devant. L\'engagement est un choix renouvelé, pas une cage.',
-    traits: ['Indépendante', 'Engagée', 'Réflexive', 'Égalitaire', 'Libre'],
-    maison: 'Simone',
+      "Le quartier des années folles, les terrasses, les rencontres faciles. Vous aimez sans drama, vite et bien : un mot juste, un rire partagé, on voit ce que ça donne. La vie amoureuse est une conversation continue, pas un grand œuvre. Beaucoup d'ouverture, peu de gravité.",
+    traits: ['Léger', 'Sociable', 'Vif', 'Curieux', 'Fluide'],
+    axes: { intensity: 'calm', rhythm: 'fast', openness: 'open' },
   },
-  // inferred — not in HTML
-  cocteau: {
-    id: 'cocteau',
-    label: 'Maison Cocteau',
-    title: 'Le Rêveur Lumineux',
-    subtitle: 'Magie quotidienne, art partagé, regard d\'enfant.',
+  bauhaus: {
+    id: 'bauhaus',
+    label: 'Maison Bauhaus',
+    maison: 'Bauhaus',
+    title: 'Les lignes nettes',
+    subtitle: "Savoir ce qu'on veut, le dire, avancer.",
     description:
-      'Vous aimez transformer le réel : un trajet de métro devient un poème, un dimanche devient une fête. Votre amour est une création commune, faite de surprises, d\'images, de détails qui réenchantent.',
-    traits: ['Créatif', 'Imaginatif', 'Tendre', 'Joueur', 'Inspiré'],
-    maison: 'Cocteau',
+      "Pas de chichi, pas de mystère. Vous savez ce que vous cherchez, vous le formulez, et vous avancez sans détour. Calme à l'intérieur, rapide en décision, sélectif en cible. L'amour est un projet — pas une rêverie — et vous voulez bâtir avec quelqu'un qui parle la même langue.",
+    traits: ['Direct', 'Pragmatique', 'Décidé', 'Clair', 'Efficace'],
+    axes: { intensity: 'calm', rhythm: 'fast', openness: 'selective' },
   },
-  // inferred — not in HTML
-  varda: {
-    id: 'varda',
-    label: 'Maison Varda',
-    title: 'La Curieuse Bienveillante',
-    subtitle: 'Regard tendre, glanage des âmes, douceur du quotidien.',
+  bloomsbury: {
+    id: 'bloomsbury',
+    label: 'Maison Bloomsbury',
+    maison: 'Bloomsbury',
+    title: "Le cercle d'esprits",
+    subtitle: 'Amitié amoureuse, lien intellectuel, longues conversations.',
     description:
-      'Vous aimez ce que les autres ne regardent plus : un visage à la fenêtre, un mot oublié, une lumière de fin de journée. Votre amour est attentionné, peu spectaculaire, mais d\'une justesse rare.',
-    traits: ['Curieuse', 'Bienveillante', 'Observatrice', 'Douce', 'Authentique'],
-    maison: 'Varda',
+      "Le cercle de Virginia Woolf. Pour vous, l'amour passe par l'esprit — les livres, les idées, les nuits à refaire le monde. Vous prenez votre temps, vous restez ouvert à des profils variés, et vous vous laissez surprendre. Tendresse calme, lien lent, complicité qui dure.",
+    traits: ['Cérébral', 'Curieux', 'Doux', 'Discret', 'Patient'],
+    axes: { intensity: 'calm', rhythm: 'slow', openness: 'open' },
   },
-  // inferred — not in HTML
-  camus: {
-    id: 'camus',
-    label: 'Maison Camus',
-    title: 'Le Lucide Solaire',
-    subtitle: 'Existence, mer, vérité simple.',
+  indigo: {
+    id: 'indigo',
+    label: 'Maison Indigo',
+    maison: 'Indigo',
+    title: 'Le bleu profond',
+    subtitle: 'Complicité silencieuse, peu mais beaucoup, refuge.',
     description:
-      'Vous aimez sans grands discours, mais avec une honnêteté qui désarme. Vous savez que rien n\'est garanti, et c\'est pour cela que vous choisissez chaque jour. La lucidité est votre forme de tendresse.',
-    traits: ['Lucide', 'Honnête', 'Solaire', 'Existentiel', 'Engagé'],
-    maison: 'Camus',
+      "Le bleu nuit, juste avant le noir. Vous aimez peu de gens et vous les aimez longtemps. Le calme à deux, le silence partagé, le geste sûr. Vous prenez votre temps, vous choisissez avec soin, et l'amour devient un refuge où l'on respire enfin.",
+    traits: ['Calme', 'Profond', 'Loyal', 'Discret', 'Refuge'],
+    axes: { intensity: 'calm', rhythm: 'slow', openness: 'selective' },
   },
-  // inferred — not in HTML
-  sagan: {
-    id: 'sagan',
-    label: 'Maison Sagan',
-    title: 'L\'Insouciante Mélancolique',
-    subtitle: 'Été, vitesse, cœur qui tangue.',
-    description:
-      'Vous vivez l\'amour comme une saison qu\'on n\'oubliera pas. Vous aimez vite, fort, parfois mal, mais toujours en sachant que l\'instant vaut mieux que la promesse. Une joie tendue, un peu triste, très vivante.',
-    traits: ['Spontanée', 'Mélancolique', 'Élégante', 'Passionnée', 'Insaisissable'],
-    maison: 'Sagan',
-  },
-  // inferred — not in HTML
-  piaf: {
-    id: 'piaf',
-    label: 'Maison Piaf',
-    title: 'La Flamme Absolue',
-    subtitle: 'Tout donner, tout vivre, ne rien regretter.',
-    description:
-      'Vous aimez en grand. Pas de demi-mesure : vos sentiments traversent comme des chansons. Vous cherchez quelqu\'un qui sache recevoir cette intensité et la rendre, sans peur, sans calcul.',
-    traits: ['Passionnée', 'Entière', 'Vibrante', 'Loyale', 'Dramatique'],
-    maison: 'Piaf',
-  },
-  // inferred — not in HTML
-  godard: {
-    id: 'godard',
-    label: 'Maison Godard',
-    title: 'L\'Esprit Anguleux',
-    subtitle: 'Idées, rupture, dialogue serré.',
-    description:
-      'Vous aimez l\'amour qui pense. Les conversations longues, les désaccords féconds, les nuits où l\'on refait le monde. Vous fuyez la mollesse — chez vous, le sentiment passe par l\'intelligence.',
-    traits: ['Intellectuel', 'Cinglant', 'Curieux', 'Anticonformiste', 'Direct'],
-    maison: 'Godard',
-  },
-  // inferred — not in HTML
-  chagall: {
-    id: 'chagall',
-    label: 'Maison Chagall',
-    title: 'L\'Amoureux Onirique',
-    subtitle: 'Tendresse, couleurs, amants qui flottent.',
-    description:
-      'Vous croyez à l\'amour comme à un miracle quotidien. Vos sentiments ont la couleur de l\'enfance et la légèreté du rêve. Vous portez l\'autre, littéralement, et vous attendez d\'être porté en retour.',
-    traits: ['Tendre', 'Onirique', 'Loyal', 'Doux', 'Spirituel'],
-    maison: 'Chagall',
-  },
-  // inferred — not in HTML
-  baldwin: {
-    id: 'baldwin',
-    label: 'Maison Baldwin',
-    title: 'Le Cœur Engagé',
-    subtitle: 'Vérité, justice, parole qui répare.',
-    description:
-      'Vous aimez avec conscience. Vos relations sont des espaces où l\'on se dit les choses, où l\'on se bat ensemble, où l\'on grandit. Vous refusez le confort des silences — votre amour est une parole qui sauve.',
-    traits: ['Engagé', 'Lucide', 'Sensible', 'Profond', 'Courageux'],
-    maison: 'Baldwin',
-  },
-  // inferred — not in HTML
-  kahlo: {
-    id: 'kahlo',
-    label: 'Maison Kahlo',
-    title: 'L\'Âme Vive',
-    subtitle: 'Douleur, couleurs, amour insurmontable.',
-    description:
-      'Vous aimez avec tout — le corps, la mémoire, les blessures. Vous transformez ce que la vie casse en beauté, et vous attendez quelqu\'un d\'aussi entier. Une intensité rare, magnétique, qu\'il faut savoir tenir.',
-    traits: ['Intense', 'Authentique', 'Créative', 'Magnétique', 'Résiliente'],
-    maison: 'Kahlo',
-  },
-  // inferred — not in HTML
-  matisse: {
-    id: 'matisse',
-    label: 'Maison Matisse',
-    title: 'Le Cœur Lumineux',
-    subtitle: 'Couleur, équilibre, joie tranquille.',
-    description:
-      'Vous aimez comme on peint un dimanche : avec calme, lumière, douceur. Vos sentiments sont harmonieux, votre quotidien soigné, vos liens longs. Vous cherchez la beauté simple, partagée, durable.',
-    traits: ['Harmonieux', 'Lumineux', 'Calme', 'Esthète', 'Ancré'],
-    maison: 'Matisse',
-  },
-  // inferred — not in HTML
-  borges: {
-    id: 'borges',
-    label: 'Maison Borges',
-    title: 'L\'Esprit Labyrinthe',
-    subtitle: 'Livres, énigmes, infini intérieur.',
-    description:
-      'Votre amour est une bibliothèque secrète. Vous aimez les esprits complexes, les références, les conversations qui durent des nuits. Discret, profond, vous offrez à l\'autre un monde entier — il faut savoir y entrer.',
-    traits: ['Cérébral', 'Mystérieux', 'Cultivé', 'Profond', 'Discret'],
-    maison: 'Borges',
-  },
-};
-
-// Display labels — sourced from HTML's `dnaLabels` (the original DNA trait
-// system, not the Maisons). Kept as-is for use elsewhere in the app.
-export const dnaLabels: Record<string, string> = {
-  stable: 'Stable',
-  passionne: 'Passionné',
-  independant: 'Indépendant',
-  fusionnel: 'Fusionnel',
-  rayonnant: 'Rayonnant',
-  selectif: 'Sélectif',
-  calme: 'Calme',
-  connecteur: 'Connecteur',
-  traditionnel: 'Traditionnel',
-  familial: 'Familial',
-  ambitieux: 'Ambitieux',
-  moderne: 'Moderne',
-  direct: 'Direct',
-  emotionnel: 'Émotionnel',
-  strategique: 'Stratégique',
-  flexible: 'Flexible',
-};
-
-// Descriptions — sourced from HTML's `dnaDescriptions` (only 4 dominant
-// relational sub-types are described in the HTML: stable, passionne,
-// independant, fusionnel). Each describes the dominant relational profile.
-export const dnaDescriptions: Record<string, string> = {
-  stable:
-    "Vous recherchez une relation claire, construite et cohérente. Vous avancez avec sérieux et vous avez besoin d'un cadre rassurant.",
-  passionne:
-    "Vous vivez la relation avec intensité. Vous cherchez une vraie alchimie et des émotions fortes au quotidien.",
-  independant:
-    "Vous valorisez la liberté autant que la complicité. Vous voulez avancer en couple sans renoncer à votre équilibre personnel.",
-  fusionnel:
-    "Vous aimez la proximité, la complicité et les liens profonds. Vous cherchez quelqu'un avec qui tout partager.",
-};
+}

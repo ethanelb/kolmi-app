@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, Switch } from 'react-native'
 import Svg, { Path } from 'react-native-svg'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -12,25 +12,24 @@ import {
 } from '@/constants/kolmiTheme'
 import SignupHeader from '@/components/kolmi/SignupHeader'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
-import { select, tapMedium } from '@/lib/kolmi/haptics'
+import { select } from '@/lib/kolmi/haptics'
 import { getKolmiProfile, saveKolmiProfile } from '@/lib/kolmi/storage'
 import { safePersist } from '@/lib/kolmi/safePersist'
 
-const SIGNUP_TOTAL_STEPS = 11
+const SIGNUP_TOTAL_STEPS = 10
 
-const GENDERS = [
-  'Homme',
-  'Femme',
-  'Non-binaire',
-  'Transgenre',
-  'Genderfluid',
-  'Autre',
-]
+const GENDERS = ['Homme', 'Femme', 'Autre']
 
 export default function GenderScreen() {
   const router = useRouter()
   const [selected, setSelected] = useState<string | null>(null)
   const [showOnProfile, setShowOnProfile] = useState(true)
+  const showOnProfileRef = useRef(showOnProfile)
+  const advancingRef = useRef(false)
+
+  useEffect(() => {
+    showOnProfileRef.current = showOnProfile
+  }, [showOnProfile])
 
   useEffect(() => {
     getKolmiProfile().then((p) => {
@@ -39,12 +38,32 @@ export default function GenderScreen() {
     })
   }, [])
 
+  const onPick = async (g: string) => {
+    if (advancingRef.current) return
+    advancingRef.current = true
+    select()
+    setSelected(g)
+    setTimeout(async () => {
+      const ok = await safePersist(() =>
+        saveKolmiProfile({
+          gender: g,
+          showGenderOnProfile: showOnProfileRef.current,
+        }),
+      )
+      if (!ok) {
+        advancingRef.current = false
+        return
+      }
+      router.push('/onboarding/height')
+    }, 180)
+  }
+
   return (
     <View style={styles.root}>
       <GrainOverlay />
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <SignupHeader
-          step={5}
+          step={4}
           total={SIGNUP_TOTAL_STEPS}
           onBack={() => router.back()}
         />
@@ -59,10 +78,7 @@ export default function GenderScreen() {
                 <TouchableOpacity
                   key={g}
                   style={[styles.option, active && styles.optionActive]}
-                  onPress={() => {
-                    select()
-                    setSelected(g)
-                  }}
+                  onPress={() => onPick(g)}
                   activeOpacity={0.75}
                 >
                   <Text style={[styles.optionText, active && styles.optionTextActive]}>
@@ -94,29 +110,6 @@ export default function GenderScreen() {
               ios_backgroundColor={kolmiColors.surfaceSoft}
             />
           </View>
-        </View>
-
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={[styles.cta, !selected && styles.ctaDisabled]}
-            onPress={async () => {
-              if (!selected) return
-              tapMedium()
-              const ok = await safePersist(() =>
-                saveKolmiProfile({
-                  gender: selected,
-                  showGenderOnProfile: showOnProfile,
-                }),
-              )
-              if (!ok) return
-              router.push('/onboarding/orientation')
-            }}
-            activeOpacity={selected ? 0.85 : 1}
-          >
-            <Text style={[styles.ctaText, !selected && styles.ctaTextDisabled]}>
-              Continuer
-            </Text>
-          </TouchableOpacity>
         </View>
       </SafeAreaView>
     </View>

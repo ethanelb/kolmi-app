@@ -1,42 +1,35 @@
 import { dnaCategories, type DnaCategoryId } from '@/data/kolmiDna'
 import {
   kolmiQuestions,
-  bonusDnaQuestions,
-  type KolmiDimension,
+  type AxisPole,
+  type KolmiAxis,
+  type KolmiQuestion,
 } from '@/data/kolmiQuestions'
 import type {
   KolmiAnswer,
-  KolmiDimensionScores,
+  KolmiAxisScores,
   KolmiDnaResult,
 } from './types'
 
-const emptyScores: KolmiDimensionScores = {
-  attachment: 0,
-  emotionalAvailability: 0,
-  communication: 0,
-  commitment: 0,
-  independence: 0,
-  conflict: 0,
-  romanticIntensity: 0,
-  lifestyle: 0,
-  values: 0,
-  socialEnergy: 0,
+// Pôle "primaire" de chaque axe — celui pour lequel un score signé positif
+// vote. Le pôle opposé est le pôle "doux" (calm / slow / selective) et gagne
+// en cas d'égalité parfaite (score = 0), comme demandé par le spec.
+const PRIMARY_POLE: Record<KolmiAxis, AxisPole> = {
+  intensity: 'ardent',
+  rhythm: 'fast',
+  openness: 'open',
+}
+
+const emptyScores: KolmiAxisScores = {
+  intensity: 0,
+  rhythm: 0,
+  openness: 0,
 }
 
 export function calculateKolmiDna(answers: KolmiAnswer[]): KolmiDnaResult {
-  const scores: KolmiDimensionScores = { ...emptyScores }
-  const allQuestions = [...kolmiQuestions, ...bonusDnaQuestions]
-
-  for (const answer of answers) {
-    const question = allQuestions.find((item) => item.id === answer.questionId)
-    const option = question?.options.find((item) => item.id === answer.optionId)
-    if (!option?.scores) continue
-    for (const [dimension, value] of Object.entries(option.scores)) {
-      scores[dimension as KolmiDimension] += value ?? 0
-    }
-  }
-
-  const categoryId = mapScoresToCategory(scores)
+  const scores = computeAxisScores(answers, kolmiQuestions)
+  const profile = resolveAxisProfile(scores)
+  const categoryId = mapAxisProfileToCategory(profile)
   const category = dnaCategories[categoryId]
 
   return {
@@ -49,127 +42,61 @@ export function calculateKolmiDna(answers: KolmiAnswer[]): KolmiDnaResult {
   }
 }
 
-/**
- * Map a score profile to one of the 16 Maisons by ranking dimensions
- * and matching the top two against an authored lookup table.
- *
- * Why top-2 instead of thresholds: with 16 questions × ~2 scoring dims
- * per option × scores 1-3, most users top out at ~3-6 on their main
- * axis. A `>= 4` threshold leaves many users off the map, and only
- * about 9 of the 16 Maisons reachable. Top-2 ranking is always defined
- * and every Maison has at least one entry below.
- */
-export function mapScoresToCategory(s: KolmiDimensionScores): DnaCategoryId {
-  const ranked = (Object.entries(s) as [KolmiDimension, number][])
-    .sort((a, b) => b[1] - a[1])
+// Somme les poids signés question par question. Pour chaque réponse, le poids
+// de l'option pousse vers `targetPole` ; on convertit en score signé sur
+// l'axe (positif = pôle primaire) en inversant le poids quand `targetPole`
+// est le pôle "doux".
+export function computeAxisScores(
+  answers: KolmiAnswer[],
+  questions: KolmiQuestion[],
+): KolmiAxisScores {
+  const scores: KolmiAxisScores = { ...emptyScores }
+  const byId = new Map(questions.map((q) => [q.id, q]))
 
-  const primaryEntry = ranked[0]
-  const secondaryEntry = ranked[1]
-  if (!primaryEntry) return 'duras'
+  for (const answer of answers) {
+    const question = byId.get(answer.questionId)
+    if (!question) continue
+    const option = question.options.find((opt) => opt.id === answer.optionId)
+    if (!option) continue
 
-  const primary = primaryEntry[0]
-  const primaryTable = TABLE[primary]
-  if (!primaryTable) return 'duras'
+    const sign = question.targetPole === PRIMARY_POLE[question.axis] ? 1 : -1
+    scores[question.axis] += option.weight * sign
+  }
 
-  // Only treat the second-ranked dimension as "secondary" if it actually
-  // scored. Otherwise the tie-break would pick a meaningless dimension
-  // (object insertion order) and bias every degenerate profile toward
-  // the same Maison.
-  const secondary = secondaryEntry && secondaryEntry[1] > 0 ? secondaryEntry[0] : undefined
-  if (!secondary) return primaryTable.default
-
-  return primaryTable[secondary] ?? primaryTable.default
+  return scores
 }
 
-type SecondaryMap = { default: DnaCategoryId } & Partial<
-  Record<KolmiDimension, DnaCategoryId>
->
+export type AxisProfile = {
+  intensity: 'ardent' | 'calm'
+  rhythm: 'fast' | 'slow'
+  openness: 'open' | 'selective'
+}
 
-// Each primary dimension defines a "house" of Maisons whose archetypes
-// align with it. The secondary picks the specific Maison; `default` is
-// a safe fallback when the secondary isn't covered.
-const TABLE: Record<KolmiDimension, SecondaryMap> = {
-  romanticIntensity: {
-    default: 'gainsbourg',
-    independence: 'gainsbourg',
-    emotionalAvailability: 'piaf',
-    values: 'kahlo',
-    socialEnergy: 'cocteau',
-    attachment: 'piaf',
-    commitment: 'kahlo',
-  },
-  emotionalAvailability: {
-    default: 'duras',
-    communication: 'duras',
-    commitment: 'simone',
-    attachment: 'chagall',
-    romanticIntensity: 'piaf',
-    values: 'simone',
-    conflict: 'duras',
-  },
-  commitment: {
-    default: 'saint_laurent',
-    values: 'saint_laurent',
-    emotionalAvailability: 'simone',
-    communication: 'baldwin',
-    attachment: 'simone',
-    romanticIntensity: 'kahlo',
-    independence: 'saint_laurent',
-  },
-  values: {
-    default: 'baldwin',
-    commitment: 'baldwin',
-    communication: 'borges',
-    romanticIntensity: 'kahlo',
-    emotionalAvailability: 'simone',
-    attachment: 'baldwin',
-  },
-  independence: {
-    default: 'sagan',
-    romanticIntensity: 'gainsbourg',
-    lifestyle: 'varda',
-    socialEnergy: 'sagan',
-    communication: 'sagan',
-    commitment: 'saint_laurent',
-  },
-  lifestyle: {
-    default: 'varda',
-    independence: 'varda',
-    socialEnergy: 'godard',
-    communication: 'godard',
-    romanticIntensity: 'cocteau',
-    values: 'varda',
-  },
-  socialEnergy: {
-    default: 'cocteau',
-    communication: 'matisse',
-    romanticIntensity: 'cocteau',
-    lifestyle: 'godard',
-    values: 'matisse',
-    emotionalAvailability: 'cocteau',
-  },
-  communication: {
-    default: 'camus',
-    emotionalAvailability: 'duras',
-    values: 'borges',
-    socialEnergy: 'matisse',
-    conflict: 'camus',
-    commitment: 'baldwin',
-    independence: 'camus',
-  },
-  attachment: {
-    default: 'arda',
-    emotionalAvailability: 'chagall',
-    commitment: 'simone',
-    romanticIntensity: 'piaf',
-    values: 'arda',
-    communication: 'chagall',
-  },
-  conflict: {
-    default: 'camus',
-    communication: 'camus',
-    emotionalAvailability: 'duras',
-    values: 'baldwin',
-    independence: 'sagan',
-  },
+// Score > 0 → pôle primaire ; <= 0 → pôle doux (par défaut, comme spec).
+export function resolveAxisProfile(scores: KolmiAxisScores): AxisProfile {
+  return {
+    intensity: scores.intensity > 0 ? 'ardent' : 'calm',
+    rhythm: scores.rhythm > 0 ? 'fast' : 'slow',
+    openness: scores.openness > 0 ? 'open' : 'selective',
+  }
+}
+
+// Lookup direct des 8 combinaisons. La clé est `intensity|rhythm|openness`.
+const PROFILE_TO_CATEGORY: Record<string, DnaCategoryId> = {
+  'ardent|fast|open': 'cinabre',
+  'ardent|fast|selective': 'carmen',
+  'ardent|slow|open': 'saudade',
+  'ardent|slow|selective': 'terracotta',
+  'calm|fast|open': 'montparnasse',
+  'calm|fast|selective': 'bauhaus',
+  'calm|slow|open': 'bloomsbury',
+  'calm|slow|selective': 'indigo',
+}
+
+export function mapAxisProfileToCategory(profile: AxisProfile): DnaCategoryId {
+  const key = `${profile.intensity}|${profile.rhythm}|${profile.openness}`
+  // Le lookup est exhaustif (8 entrées pour 8 combinaisons), mais on
+  // garde un fallback explicite vers la Maison "doux totale" pour
+  // satisfaire TS et couvrir un futur changement d'axe.
+  return PROFILE_TO_CATEGORY[key] ?? 'indigo'
 }

@@ -28,6 +28,8 @@ const { width } = Dimensions.get('window')
 const SLOT_GAP = 10
 const COLS = 3
 const ROWS = 2
+const TOTAL_SLOTS = COLS * ROWS
+const MIN_PHOTOS = 2
 const SLOT_SIZE = (width - kolmiPaddingX * 2 - SLOT_GAP * 2) / COLS
 const SLOT_HEIGHT = SLOT_SIZE * 1.3
 
@@ -154,9 +156,9 @@ export default function EditPhotosScreen() {
   useEffect(() => {
     getKolmiProfile().then((p) => {
       if (p.photoUrls?.length) {
-        const slots: (string | null)[] = [null, null, null, null, null, null]
+        const slots: (string | null)[] = Array(TOTAL_SLOTS).fill(null)
         p.photoUrls.forEach((url, i) => {
-          if (i < 6) slots[i] = url
+          if (i < TOTAL_SLOTS) slots[i] = url
         })
         setPhotos(slots)
       }
@@ -164,7 +166,7 @@ export default function EditPhotosScreen() {
   }, [])
 
   const filledCount = photos.filter(Boolean).length
-  const isValid = filledCount >= 4
+  const isValid = filledCount >= MIN_PHOTOS
 
   const addPhoto = async (index: number) => {
     const uri = await pickProfilePhoto()
@@ -185,7 +187,7 @@ export default function EditPhotosScreen() {
   }
 
   const reorderPhotos = (from: number, to: number) => {
-    if (from === to || from < 0 || to < 0 || from >= 6 || to >= 6) return
+    if (from === to || from < 0 || to < 0 || from >= TOTAL_SLOTS || to >= TOTAL_SLOTS) return
     setPhotos((prev) => {
       const next = [...prev]
       const tmp = next[from]
@@ -230,7 +232,7 @@ export default function EditPhotosScreen() {
                 key={i}
                 index={i}
                 photo={photo}
-                isRequired={i < 4}
+                isRequired={i < MIN_PHOTOS}
                 onAdd={(idx) => {
                   void addPhoto(idx)
                 }}
@@ -241,7 +243,7 @@ export default function EditPhotosScreen() {
           </View>
 
           <Text style={styles.hint}>
-            Maintenez une photo et glissez pour réorganiser · 4 photos minimum
+            Maintenez une photo et glissez pour réorganiser · {MIN_PHOTOS} photos minimum
           </Text>
         </View>
 

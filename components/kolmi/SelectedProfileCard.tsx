@@ -9,7 +9,7 @@ type Props = {
   onPress: () => void
 }
 
-export default function SelectedProfileCard({ profile, onPress }: Props) {
+function SelectedProfileCard({ profile, onPress }: Props) {
   return (
     <Pressable
       onPress={onPress}
@@ -91,3 +91,5 @@ export default function SelectedProfileCard({ profile, onPress }: Props) {
     </Pressable>
   )
 }
+
+export default React.memo(SelectedProfileCard)

@@ -16,13 +16,12 @@ import { select, tapMedium } from '@/lib/kolmi/haptics'
 import { getKolmiProfile, saveKolmiProfile } from '@/lib/kolmi/storage'
 import { safePersist } from '@/lib/kolmi/safePersist'
 
-const SIGNUP_TOTAL_STEPS = 11
+const SIGNUP_TOTAL_STEPS = 10
 
 const OPTIONS = [
   { id: 'men', label: 'Des hommes' },
   { id: 'women', label: 'Des femmes' },
-  { id: 'everyone', label: 'Tout le monde' },
-  { id: 'nonbinary', label: 'Des personnes non-binaires' },
+  { id: 'other', label: 'Autre' },
 ]
 
 export default function OrientationScreen() {
@@ -104,7 +103,7 @@ export default function OrientationScreen() {
                 saveKolmiProfile({ orientations: selected }),
               )
               if (!ok) return
-              router.push('/onboarding/height')
+              router.push('/onboarding/seeking')
             }}
             activeOpacity={isValid ? 0.85 : 1}
           >

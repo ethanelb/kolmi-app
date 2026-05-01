@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { ScrollView, View, Text, TouchableOpacity, Image } from 'react-native'
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -49,28 +49,34 @@ export default function DiscoverScreen() {
 
   // Sections mutuellement exclusives — un profil n'apparaît jamais
   // dans plus d'une section.
-  const available = mockSelectedProfiles.filter((p) => !passed.includes(p.id))
-  const featured = available.filter((p) => p.isFeatured)
-  const compat = available.filter((p) => !p.isFeatured && p.compatibility >= 85)
-  const placedIds = new Set([...featured, ...compat].map((p) => p.id))
-  const week = available.filter((p) => !placedIds.has(p.id))
-
-  const sections: Section[] = [
-    { id: 'featured', title: 'Profils mis en avant', profiles: featured },
-    { id: 'compat', title: 'Compatibles avec votre Maison', profiles: compat },
-    { id: 'week', title: 'Disponibles cette semaine', profiles: week },
-  ]
+  const sections: Section[] = useMemo(() => {
+    const available = mockSelectedProfiles.filter((p) => !passed.includes(p.id))
+    const featured = available.filter((p) => p.isFeatured)
+    const compat = available.filter((p) => !p.isFeatured && p.compatibility >= 85)
+    const placedIds = new Set([...featured, ...compat].map((p) => p.id))
+    const week = available.filter((p) => !placedIds.has(p.id))
+    return [
+      { id: 'featured', title: 'Profils mis en avant', profiles: featured },
+      { id: 'compat', title: 'Compatibles avec votre Maison', profiles: compat },
+      { id: 'week', title: 'Disponibles cette semaine', profiles: week },
+    ]
+  }, [passed])
 
   const allEmpty = sections.every((s) => s.profiles.length === 0)
 
-  function handleAnalyze(id: string) {
+  const handleAnalyze = useCallback((id: string) => {
     tapMedium()
     setAnalyzed((prev) => {
       const next = new Set(prev)
       next.add(id)
       return next
     })
-  }
+  }, [])
+
+  const handleView = useCallback(
+    (id: string) => router.push(`/matches/${id}`),
+    [router],
+  )
 
   return (
     <View style={{ flex: 1, backgroundColor: kolmiColors.bg }}>
@@ -195,8 +201,8 @@ export default function DiscoverScreen() {
                       <DiscoverCard
                         profile={profile}
                         analyzed={analyzed.has(profile.id)}
-                        onAnalyze={() => handleAnalyze(profile.id)}
-                        onView={() => router.push(`/matches/${profile.id}`)}
+                        onAnalyze={handleAnalyze}
+                        onView={handleView}
                       />
                     </Animated.View>
                   ))}
@@ -210,7 +216,7 @@ export default function DiscoverScreen() {
   )
 }
 
-function DiscoverCard({
+const DiscoverCard = React.memo(function DiscoverCard({
   profile,
   analyzed,
   onAnalyze,
@@ -218,9 +224,11 @@ function DiscoverCard({
 }: {
   profile: SelectedProfile
   analyzed: boolean
-  onAnalyze: () => void
-  onView: () => void
+  onAnalyze: (id: string) => void
+  onView: (id: string) => void
 }) {
+  const analyzePress = useCallback(() => onAnalyze(profile.id), [onAnalyze, profile.id])
+  const viewPress = useCallback(() => onView(profile.id), [onView, profile.id])
   return (
     <View
       style={{
@@ -293,7 +301,7 @@ function DiscoverCard({
 
         <View style={{ flexDirection: 'row', gap: kolmiSpace.xs, marginTop: kolmiSpace.sm }}>
           <TouchableOpacity
-            onPress={analyzed ? onView : onAnalyze}
+            onPress={analyzed ? viewPress : analyzePress}
             activeOpacity={0.85}
             style={{
               flex: 1,
@@ -316,7 +324,7 @@ function DiscoverCard({
           </TouchableOpacity>
           {!analyzed && (
             <TouchableOpacity
-              onPress={onView}
+              onPress={viewPress}
               activeOpacity={0.7}
               style={{
                 flex: 1,
@@ -343,7 +351,7 @@ function DiscoverCard({
       </View>
     </View>
   )
-}
+})
 
 function DiscoverCardSkeleton() {
   return (

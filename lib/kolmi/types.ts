@@ -1,5 +1,5 @@
 import type { DnaCategoryId } from '@/data/kolmiDna'
-import type { KolmiDimension } from '@/data/kolmiQuestions'
+import type { KolmiAxis } from '@/data/kolmiQuestions'
 
 export type KolmiAnswer = {
   questionId: string
@@ -8,12 +8,17 @@ export type KolmiAnswer = {
   answeredAt: string
 }
 
-export type KolmiDimensionScores = Record<KolmiDimension, number>
+// Score signé par axe. Convention :
+//   intensity > 0 → ardent  ; <= 0 → calm
+//   rhythm    > 0 → fast    ; <= 0 → slow
+//   openness  > 0 → open    ; <= 0 → selective
+// Le pôle "doux" (calm / slow / selective) gagne en cas d'égalité (0).
+export type KolmiAxisScores = Record<KolmiAxis, number>
 
 export type KolmiDnaResult = {
   categoryId: DnaCategoryId
   categoryLabel: string
-  scores: KolmiDimensionScores
+  scores: KolmiAxisScores
   primaryTraits: string[]
   summary: string
   createdAt: string

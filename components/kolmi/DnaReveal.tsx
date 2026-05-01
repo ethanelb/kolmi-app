@@ -29,15 +29,18 @@ import {
 import { dnaCategories, type DnaCategoryId } from '@/data/kolmiDna'
 import type { KolmiDnaResult } from '@/lib/kolmi/types'
 
-const ROMAN = [
-  'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII',
-  'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV', 'XVI',
-]
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII']
 const ROMAN_LOWER = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii']
 
 const ORDER: DnaCategoryId[] = [
-  'gainsbourg', 'duras', 'saint_laurent', 'arda', 'simone', 'cocteau', 'varda',
-  'camus', 'sagan', 'piaf', 'godard', 'chagall', 'baldwin', 'kahlo', 'matisse', 'borges',
+  'cinabre',
+  'carmen',
+  'saudade',
+  'terracotta',
+  'montparnasse',
+  'bauhaus',
+  'bloomsbury',
+  'indigo',
 ]
 
 const SCREEN_HEIGHT = Dimensions.get('window').height

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native'
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -98,15 +98,18 @@ export default function DatesScreen() {
     }, [refresh])
   )
 
-  const buckets: Record<keyof typeof SECTION_LABELS, Meeting[]> = {
-    todo: [],
-    waiting: [],
-    confirmed: [],
-    past: [],
-  }
-  for (const m of meetings) {
-    buckets[bucketFor(m.status)].push(m)
-  }
+  const buckets = useMemo(() => {
+    const out: Record<keyof typeof SECTION_LABELS, Meeting[]> = {
+      todo: [],
+      waiting: [],
+      confirmed: [],
+      past: [],
+    }
+    for (const m of meetings) {
+      out[bucketFor(m.status)].push(m)
+    }
+    return out
+  }, [meetings])
 
   const sectionOrder: (keyof typeof SECTION_LABELS)[] = [
     'todo',
@@ -114,6 +117,15 @@ export default function DatesScreen() {
     'confirmed',
     'past',
   ]
+
+  const handleSchedule = useCallback(
+    (id: string) => router.push(`/meeting/schedule/${id}`),
+    [router],
+  )
+  const handleConfirm = useCallback(
+    (id: string) => router.push(`/meeting/confirm/${id}`),
+    [router],
+  )
 
   return (
     <View style={{ flex: 1, backgroundColor: kolmiColors.bg }}>
@@ -216,8 +228,8 @@ export default function DatesScreen() {
                   >
                     <MeetingRow
                       meeting={m}
-                      onSchedule={() => router.push(`/meeting/schedule/${m.id}`)}
-                      onConfirm={() => router.push(`/meeting/confirm/${m.id}`)}
+                      onSchedule={handleSchedule}
+                      onConfirm={handleConfirm}
                     />
                   </Animated.View>
                 ))}
@@ -230,24 +242,27 @@ export default function DatesScreen() {
   )
 }
 
-function MeetingRow({
+const MeetingRow = React.memo(function MeetingRow({
   meeting,
   onSchedule,
   onConfirm,
 }: {
   meeting: Meeting
-  onSchedule: () => void
-  onConfirm: () => void
+  onSchedule: (id: string) => void
+  onConfirm: (id: string) => void
 }) {
   const profile = getSelectedProfileById(meeting.profileId)
   const name = profile ? `${profile.firstName}, ${profile.age}` : meeting.profileId
   const label = statusLabel(meeting.status, meeting.confirmedSlot)
 
+  const schedulePress = useCallback(() => onSchedule(meeting.id), [onSchedule, meeting.id])
+  const confirmPress = useCallback(() => onConfirm(meeting.id), [onConfirm, meeting.id])
+
   const cta =
     meeting.status === 'accepted_waiting_slots'
-      ? { text: 'Choisir mes disponibilités', onPress: onSchedule, primary: true }
+      ? { text: 'Choisir mes disponibilités', onPress: schedulePress, primary: true }
       : meeting.status === 'confirmed'
-        ? { text: 'Voir le rendez-vous', onPress: onConfirm, primary: true }
+        ? { text: 'Voir le rendez-vous', onPress: confirmPress, primary: true }
         : null
 
   return (
@@ -309,4 +324,4 @@ function MeetingRow({
       )}
     </View>
   )
-}
+})

@@ -21,7 +21,7 @@ function parsePhase(raw: string): { roman: string; title: string } {
 
 // Chapter-break phase divider — roman numeral, ornament, small-caps title.
 // Replaces the generic outline divider with editorial book-page typography.
-export default function PhaseDivider({ text }: Props) {
+function PhaseDivider({ text }: Props) {
   const { roman, title } = parsePhase(text)
   return (
     <View style={{ alignItems: 'center', marginVertical: 36, gap: 8 }}>
@@ -61,3 +61,5 @@ export default function PhaseDivider({ text }: Props) {
     </View>
   )
 }
+
+export default React.memo(PhaseDivider)

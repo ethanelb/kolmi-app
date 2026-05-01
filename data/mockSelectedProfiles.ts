@@ -21,7 +21,7 @@ export const mockSelectedProfiles: SelectedProfile[] = [
     firstName: 'Sarah',
     age: 24,
     city: 'Paris',
-    dnaLabel: 'Maison Duras',
+    dnaLabel: 'Maison Indigo',
     compatibility: 91,
     reason:
       'Même rythme émotionnel, communication directe, forte compatibilité de valeurs.',
@@ -45,7 +45,7 @@ export const mockSelectedProfiles: SelectedProfile[] = [
     firstName: 'Noa',
     age: 23,
     city: 'Paris',
-    dnaLabel: 'Maison Saint Laurent',
+    dnaLabel: 'Maison Bauhaus',
     compatibility: 87,
     reason:
       'Profil stable, esthétique relationnelle proche, vision sérieuse de la rencontre.',
@@ -69,7 +69,7 @@ export const mockSelectedProfiles: SelectedProfile[] = [
     firstName: 'Anna',
     age: 25,
     city: 'Paris',
-    dnaLabel: 'Maison Gainsbourg',
+    dnaLabel: 'Maison Carmen',
     compatibility: 84,
     reason:
       'Connexion probable sur l\'intensité, la curiosité et le goût du non-conventionnel.',
@@ -93,7 +93,7 @@ export const mockSelectedProfiles: SelectedProfile[] = [
     firstName: 'Lou',
     age: 26,
     city: 'Paris',
-    dnaLabel: 'Maison Varda',
+    dnaLabel: 'Maison Bloomsbury',
     compatibility: 89,
     reason:
       'Regard tendre, attention aux détails, lecture juste des situations.',
@@ -118,7 +118,7 @@ export const mockSelectedProfiles: SelectedProfile[] = [
     firstName: 'Camille',
     age: 27,
     city: 'Paris',
-    dnaLabel: 'Maison Simone',
+    dnaLabel: 'Maison Saudade',
     compatibility: 86,
     reason:
       'Indépendance assumée, exigence intellectuelle, vision claire du couple.',
@@ -143,7 +143,7 @@ export const mockSelectedProfiles: SelectedProfile[] = [
     firstName: 'Léo',
     age: 28,
     city: 'Paris',
-    dnaLabel: 'Maison Cocteau',
+    dnaLabel: 'Maison Cinabre',
     compatibility: 82,
     reason:
       'Imagination quotidienne, sens du détail poétique, énergie créative.',

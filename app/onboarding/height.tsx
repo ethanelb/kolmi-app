@@ -1,11 +1,16 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import {
-  View, Text, StyleSheet, TouchableOpacity, Animated,
-  NativeSyntheticEvent, NativeScrollEvent,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import * as Haptics from 'expo-haptics'
 import {
   kolmiColors,
   kolmiSpace,
@@ -15,221 +20,100 @@ import {
 } from '@/constants/kolmiTheme'
 import SignupHeader from '@/components/kolmi/SignupHeader'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
+import EmptyKeyboardAccessory, { EMPTY_ACCESSORY_ID } from '@/components/kolmi/EmptyKeyboardAccessory'
+import { tapMedium } from '@/lib/kolmi/haptics'
 import { getKolmiProfile, saveKolmiProfile } from '@/lib/kolmi/storage'
 import { safePersist } from '@/lib/kolmi/safePersist'
 
-const SIGNUP_TOTAL_STEPS = 11
-const ITEM_HEIGHT = 56
-const VISIBLE_ITEMS = 5
-const PICKER_HEIGHT = ITEM_HEIGHT * VISIBLE_ITEMS
-
-const CM_VALUES = Array.from({ length: 81 }, (_, i) => 140 + i)
-
-const FT_VALUES: { label: string; cm: number }[] = []
-for (let totalIn = 54; totalIn <= 84; totalIn++) {
-  const ft = Math.floor(totalIn / 12)
-  const inch = totalIn % 12
-  FT_VALUES.push({ label: `${ft}'${inch}"`, cm: Math.round(totalIn * 2.54) })
-}
+const SIGNUP_TOTAL_STEPS = 10
+const MIN_CM = 130
+const MAX_CM = 220
 
 export default function HeightScreen() {
   const router = useRouter()
-  const [unit, setUnit] = useState<'cm' | 'ft'>('cm')
-  const [selectedCm, setSelectedCm] = useState(170)
+  const [value, setValue] = useState('')
+  const inputRef = useRef<TextInput>(null)
 
-  const scrollRef = useRef<any>(null)
-  const lastHapticIndex = useRef(-1)
-  const scrollY = useRef(new Animated.Value(0)).current
-  const hydratedRef = useRef(false)
-
-  const cmIndex = CM_VALUES.indexOf(selectedCm)
-  const ftIndex = FT_VALUES.findIndex(v => v.cm === selectedCm) ?? 0
-
-  const scrollToIndex = useCallback((index: number, animated = true) => {
-    scrollRef.current?.scrollTo?.({ y: index * ITEM_HEIGHT, animated })
-    if (!animated) scrollY.setValue(index * ITEM_HEIGHT)
-  }, [scrollY])
+  const parsed = parseInt(value, 10)
+  const isValid = Number.isFinite(parsed) && parsed >= MIN_CM && parsed <= MAX_CM
 
   useEffect(() => {
+    let cancelled = false
     getKolmiProfile().then((p) => {
-      if (typeof p.heightCm === 'number') {
-        setSelectedCm(p.heightCm)
-        // Scroll the picker after the next paint so it lands on the saved value.
-        setTimeout(() => {
-          const idx = unit === 'cm'
-            ? CM_VALUES.indexOf(p.heightCm!)
-            : FT_VALUES.findIndex(v => v.cm === p.heightCm)
-          if (idx >= 0) {
-            lastHapticIndex.current = idx
-            scrollToIndex(idx, false)
-          }
-        }, 50)
-      }
-      hydratedRef.current = true
+      if (cancelled) return
+      if (typeof p.heightCm === 'number') setValue(String(p.heightCm))
+      const t = setTimeout(() => inputRef.current?.focus(), 250)
+      return () => clearTimeout(t)
     })
-  }, [scrollToIndex, unit])
-
-  // Haptic tick + live label update when an item lands in the center
-  // band. Math.floor (rather than Math.round) fires on integer-multiple
-  // crossings so the tick lines up with the visual snap instead of leading
-  // it by half an item. Updating selectedCm in the listener makes the red
-  // label at the top track the wheel in real time during the scroll.
-  useEffect(() => {
-    const id = scrollY.addListener(({ value: y }) => {
-      const idx = Math.floor(y / ITEM_HEIGHT)
-      if (idx === lastHapticIndex.current) return
-      lastHapticIndex.current = idx
-      Haptics.selectionAsync().catch(() => {})
-      const liveValue =
-        unit === 'cm' ? CM_VALUES[idx] : FT_VALUES[idx]?.cm
-      if (liveValue !== undefined) setSelectedCm(liveValue)
-    })
-    return () => scrollY.removeListener(id)
-  }, [scrollY, unit])
-
-  const handleUnitToggle = (newUnit: 'cm' | 'ft') => {
-    if (newUnit === unit) return
-    Haptics.selectionAsync()
-    setUnit(newUnit)
-    if (newUnit === 'ft') {
-      const idx = FT_VALUES.findIndex(v => v.cm >= selectedCm)
-      setTimeout(() => scrollToIndex(Math.max(0, idx), false), 50)
-    } else {
-      const idx = CM_VALUES.indexOf(selectedCm)
-      setTimeout(() => scrollToIndex(Math.max(0, idx), false), 50)
+    return () => {
+      cancelled = true
     }
-  }
-
-  const handleScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const offsetY = e.nativeEvent.contentOffset.y
-    const index = Math.round(offsetY / ITEM_HEIGHT)
-    if (unit === 'cm') {
-      const val = CM_VALUES[index]
-      if (val !== undefined) setSelectedCm(val)
-    } else {
-      const val = FT_VALUES[index]
-      if (val !== undefined) setSelectedCm(val.cm)
-    }
-  }
-
-  const values = unit === 'cm'
-    ? CM_VALUES.map(v => `${v}`)
-    : FT_VALUES.map(v => v.label)
-
-  const selectedLabel = unit === 'cm'
-    ? `${selectedCm} cm`
-    : FT_VALUES.find(v => v.cm === selectedCm)?.label ?? `${selectedCm}`
-
-  const initialIndex = unit === 'cm' ? cmIndex : ftIndex
+  }, [])
 
   return (
     <View style={styles.root}>
       <GrainOverlay />
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <SignupHeader
-          step={7}
+          step={5}
           total={SIGNUP_TOTAL_STEPS}
           onBack={() => router.back()}
         />
 
-        <View style={styles.body}>
-          <Text style={styles.title}>{'Quelle est\nta taille ?'}</Text>
-          <Text style={styles.subtitle}>
-            On l'affiche sur ton profil pour mieux matcher
-          </Text>
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.body}>
+            <Text style={styles.title}>{'Quelle est\nta taille ?'}</Text>
+            <Text style={styles.subtitle}>
+              Entre {MIN_CM} et {MAX_CM} cm
+            </Text>
 
-          <View style={styles.unitToggle}>
-            <TouchableOpacity
-              style={[styles.unitBtn, unit === 'cm' && styles.unitBtnActive]}
-              onPress={() => handleUnitToggle('cm')}
-              activeOpacity={0.7}
+            <Pressable
+              style={styles.inputWrap}
+              onPress={() => inputRef.current?.focus()}
             >
-              <Text style={[styles.unitText, unit === 'cm' && styles.unitTextActive]}>cm</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.unitBtn, unit === 'ft' && styles.unitBtnActive]}
-              onPress={() => handleUnitToggle('ft')}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.unitText, unit === 'ft' && styles.unitTextActive]}>ft / in</Text>
-            </TouchableOpacity>
+              <View style={styles.inputRow}>
+                <TextInput
+                  ref={inputRef}
+                  style={styles.input}
+                  value={value}
+                  onChangeText={(t) => setValue(t.replace(/[^0-9]/g, '').slice(0, 3))}
+                  placeholder="175"
+                  placeholderTextColor={kolmiColors.textGhost}
+                  keyboardType="number-pad"
+                  maxLength={3}
+                  returnKeyType="done"
+                  inputAccessoryViewID={EMPTY_ACCESSORY_ID}
+                />
+                <Text style={styles.unit}>cm</Text>
+              </View>
+            </Pressable>
           </View>
 
-          <Text style={styles.selectedValue}>{selectedLabel}</Text>
-
-          <View style={styles.pickerWrapper}>
-            <View style={styles.selectionHighlight} pointerEvents="none" />
-
-            <Animated.ScrollView
-              ref={scrollRef}
-              style={styles.picker}
-              showsVerticalScrollIndicator={false}
-              snapToInterval={ITEM_HEIGHT}
-              decelerationRate="fast"
-              onScroll={Animated.event(
-                [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-                { useNativeDriver: true },
-              )}
-              onMomentumScrollEnd={handleScrollEnd}
-              scrollEventThrottle={16}
-              contentOffset={{ x: 0, y: initialIndex * ITEM_HEIGHT }}
-            >
-              <View style={{ height: ITEM_HEIGHT * 2 }} />
-
-              {values.map((val, i) => {
-                const itemY = i * ITEM_HEIGHT
-                const opacity = scrollY.interpolate({
-                  inputRange: [
-                    itemY - 2 * ITEM_HEIGHT,
-                    itemY - ITEM_HEIGHT,
-                    itemY,
-                    itemY + ITEM_HEIGHT,
-                    itemY + 2 * ITEM_HEIGHT,
-                  ],
-                  outputRange: [0.2, 0.5, 1, 0.5, 0.2],
-                  extrapolate: 'clamp',
-                })
-                const scale = scrollY.interpolate({
-                  inputRange: [itemY - ITEM_HEIGHT, itemY, itemY + ITEM_HEIGHT],
-                  outputRange: [0.88, 1, 0.88],
-                  extrapolate: 'clamp',
-                })
-                return (
-                  <View key={val} style={[styles.pickerItem, { height: ITEM_HEIGHT }]}>
-                    <Animated.Text
-                      style={[
-                        styles.pickerItemText,
-                        { opacity, transform: [{ scale }] },
-                      ]}
-                    >
-                      {val}
-                    </Animated.Text>
-                  </View>
+          <View style={styles.footer}>
+            <TouchableOpacity
+              style={[styles.cta, !isValid && styles.ctaDisabled]}
+              onPress={async () => {
+                if (!isValid) return
+                tapMedium()
+                const ok = await safePersist(() =>
+                  saveKolmiProfile({ heightCm: parsed }),
                 )
-              })}
-
-              <View style={{ height: ITEM_HEIGHT * 2 }} />
-            </Animated.ScrollView>
+                if (!ok) return
+                router.push('/onboarding/orientation')
+              }}
+              activeOpacity={isValid ? 0.85 : 1}
+            >
+              <Text style={[styles.ctaText, !isValid && styles.ctaTextDisabled]}>
+                Continuer
+              </Text>
+            </TouchableOpacity>
           </View>
-        </View>
-
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={styles.cta}
-            onPress={async () => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-              const ok = await safePersist(() =>
-                saveKolmiProfile({ heightCm: selectedCm }),
-              )
-              if (!ok) return
-              router.push('/onboarding/lifestyle')
-            }}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.ctaText}>Continuer</Text>
-          </TouchableOpacity>
-        </View>
+        </KeyboardAvoidingView>
       </SafeAreaView>
+      <EmptyKeyboardAccessory />
     </View>
   )
 }
@@ -237,6 +121,7 @@ export default function HeightScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: kolmiColors.bg },
   safe: { flex: 1 },
+  flex: { flex: 1 },
   body: {
     flex: 1,
     paddingHorizontal: kolmiPaddingX,
@@ -256,74 +141,30 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     marginTop: kolmiSpace.sm,
   },
-
-  unitToggle: {
+  inputWrap: {
+    marginTop: kolmiSpace.xxxl,
+    borderBottomWidth: 1.5,
+    borderBottomColor: kolmiColors.text,
+  },
+  inputRow: {
     flexDirection: 'row',
-    backgroundColor: kolmiColors.surfaceSoft,
-    borderRadius: kolmiRadius.pill,
-    padding: 4,
-    alignSelf: 'center',
-    marginTop: kolmiSpace.xl,
+    alignItems: 'baseline',
+    gap: kolmiSpace.xs,
   },
-  unitBtn: {
-    paddingHorizontal: kolmiSpace.xl,
-    paddingVertical: kolmiSpace.xs,
-    borderRadius: kolmiRadius.pill,
-  },
-  unitBtnActive: {
-    backgroundColor: kolmiColors.accent,
-  },
-  unitText: {
-    fontFamily: kolmiFonts.uiMedium,
-    fontSize: 13,
-    color: kolmiColors.textSecondary,
-    letterSpacing: 0.3,
-  },
-  unitTextActive: {
-    color: kolmiColors.white,
-    fontFamily: kolmiFonts.uiSemiBold,
-  },
-
-  selectedValue: {
+  input: {
+    height: 52,
+    flex: 1,
     fontFamily: kolmiFonts.serif,
-    fontSize: 44,
-    color: kolmiColors.accent,
-    textAlign: 'center',
-    letterSpacing: -1,
-    marginTop: kolmiSpace.lg,
+    fontSize: 24,
+    color: kolmiColors.text,
+    paddingHorizontal: 4,
+    paddingVertical: 0,
   },
-
-  pickerWrapper: {
-    height: PICKER_HEIGHT,
-    position: 'relative',
-    marginTop: kolmiSpace.md,
-  },
-  picker: { flex: 1 },
-  pickerItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pickerItemText: {
-    fontFamily: kolmiFonts.serifLegacyRegular,
+  unit: {
+    fontFamily: kolmiFonts.serif,
     fontSize: 22,
-    color: kolmiColors.text,
+    color: kolmiColors.textBody,
   },
-  pickerItemTextActive: {
-    fontFamily: kolmiFonts.serifLegacy,
-    fontSize: 26,
-    color: kolmiColors.text,
-  },
-  selectionHighlight: {
-    position: 'absolute',
-    top: ITEM_HEIGHT * 2,
-    left: 0,
-    right: 0,
-    height: ITEM_HEIGHT,
-    backgroundColor: kolmiColors.surfaceWheel,
-    borderRadius: kolmiRadius.md,
-    zIndex: 0,
-  },
-
   footer: {
     paddingHorizontal: kolmiPaddingX,
     paddingBottom: kolmiSpace.xl,
@@ -340,10 +181,18 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     elevation: 4,
   },
+  ctaDisabled: {
+    backgroundColor: kolmiColors.surfaceSoft,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
   ctaText: {
     fontFamily: kolmiFonts.uiSemiBold,
     fontSize: 16,
     color: kolmiColors.white,
     letterSpacing: 0.2,
+  },
+  ctaTextDisabled: {
+    color: kolmiColors.textMuted,
   },
 })

@@ -11,10 +11,12 @@ type Props = {
 // AI = typography flowing on the page (italic serif, no bubble, like a letter).
 // User = small paper slip slipped back across the page (slight rotation,
 // thin sepia rules top/bottom, em-dash prefix).
-export default function ChatBubble({ role, text }: Props) {
+function ChatBubble({ role, text }: Props) {
   if (role === 'ai') return <AiLetter text={text} />
   return <UserSlip text={text} />
 }
+
+export default React.memo(ChatBubble)
 
 function AiLetter({ text }: { text: string }) {
   return (

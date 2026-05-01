@@ -250,7 +250,6 @@ export default function ProfileTabScreen() {
                 const age = computeAge(profile.birthDate)
                 return age != null ? ` · ${age} ans` : ''
               })()}
-              {profile.heightCm ? ` · ${profile.heightCm} cm` : ''}
               {profile.gender ? ` · ${profile.gender}` : ''}
             </Text>
             {profile.orientations?.length ? (
@@ -278,16 +277,8 @@ export default function ProfileTabScreen() {
               onPress={() => router.push('/profile/edit-gender')}
             />
             <ActionRow
-              label="Modifier ma taille"
-              onPress={() => router.push('/profile/edit-height')}
-            />
-            <ActionRow
               label="Modifier mon orientation"
               onPress={() => router.push('/profile/edit-orientation')}
-            />
-            <ActionRow
-              label="Modifier mon style de vie"
-              onPress={() => router.push('/profile/edit-lifestyle')}
             />
           </Section>
 
@@ -358,8 +349,7 @@ function computeAge(birthDate: KolmiProfile['birthDate']): number | null {
 const ORIENTATION_LABELS: Record<string, string> = {
   men: 'Hommes',
   women: 'Femmes',
-  everyone: 'Tout le monde',
-  nonbinary: 'Personnes non-binaires',
+  other: 'Autre',
 }
 
 function formatOrientations(ids: string[]): string {
