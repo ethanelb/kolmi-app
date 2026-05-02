@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { ScrollView, Text, TouchableOpacity, View, StyleSheet } from 'react-native'
+import { Image } from 'expo-image'
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'
@@ -128,71 +129,28 @@ export default function DatesScreen() {
   )
 
   return (
-    <View style={{ flex: 1, backgroundColor: kolmiColors.bg }}>
+    <View style={styles.root}>
       <GrainOverlay />
-      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+      <SafeAreaView style={styles.safe} edges={['top']}>
         <ScrollView
-          contentContainerStyle={{
-            paddingHorizontal: kolmiPaddingX,
-            paddingTop: kolmiSpace.md,
-            paddingBottom: kolmiSpace.xxxl,
-            gap: kolmiSpace.xl,
-          }}
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <View style={{ gap: kolmiSpace.xs }}>
-            <Text
-              style={{
-                fontFamily: kolmiFonts.serif,
-                fontSize: 36,
-                color: kolmiColors.text,
-                lineHeight: 42,
-                letterSpacing: -0.4,
-              }}
-            >
-              Rendez-vous
-            </Text>
-            <Text
-              style={{
-                fontFamily: kolmiFonts.serifItalic,
-                fontSize: 16,
-                color: kolmiColors.textBody,
-                lineHeight: 22,
-              }}
-            >
-              Vos rencontres en cours et à venir, organisées par votre matchmaker.
+          {/* Header éditorial */}
+          <View style={styles.header}>
+            <Text style={styles.kicker}>Rendez-vous</Text>
+            <Text style={styles.title}>Vos rencontres.</Text>
+            <Text style={styles.subtitle}>
+              En cours et à venir, organisées par votre matchmaker.
             </Text>
           </View>
 
           {meetings.length === 0 && (
-            <View
-              style={{
-                padding: kolmiSpace.lg,
-                borderRadius: kolmiRadius.lg,
-                borderWidth: 1,
-                borderColor: kolmiColors.outline,
-                gap: kolmiSpace.sm,
-              }}
-            >
-              <Text
-                style={{
-                  fontFamily: kolmiFonts.serif,
-                  fontSize: 22,
-                  color: kolmiColors.text,
-                  lineHeight: 28,
-                }}
-              >
-                Aucune rencontre en cours.
-              </Text>
-              <Text
-                style={{
-                  fontFamily: kolmiFonts.serifItalic,
-                  fontSize: 15,
-                  color: kolmiColors.textBody,
-                  lineHeight: 22,
-                }}
-              >
-                Les demandes apparaîtront ici. Commencez depuis un profil de votre Sélection.
+            <View style={styles.emptyBlock}>
+              <View style={styles.emptyOrnament} />
+              <Text style={styles.emptyTitle}>Aucune rencontre en cours.</Text>
+              <Text style={styles.emptyBody}>
+                Vos demandes apparaîtront ici. Commencez depuis un profil de votre courrier du jour.
               </Text>
             </View>
           )}
@@ -206,19 +164,12 @@ export default function DatesScreen() {
                 entering={FadeIn.delay(staggerDelay(sIdx, 100))
                   .duration(kolmiMotion.duration.lg)
                   .easing(kolmiMotion.easing.soft)}
-                style={{ gap: kolmiSpace.sm }}
+                style={styles.section}
               >
-                <Text
-                  style={{
-                    fontFamily: kolmiFonts.uiSemiBold,
-                    fontSize: 11,
-                    color: kolmiColors.textSecondary,
-                    textTransform: 'uppercase',
-                    letterSpacing: 1.6,
-                  }}
-                >
-                  {SECTION_LABELS[key]}
-                </Text>
+                <View style={styles.sectionHead}>
+                  <View style={styles.sectionRule} />
+                  <Text style={styles.sectionLabel}>{SECTION_LABELS[key]}</Text>
+                </View>
                 {list.map((m, i) => (
                   <Animated.View
                     key={m.id}
@@ -242,6 +193,91 @@ export default function DatesScreen() {
   )
 }
 
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: kolmiColors.bg },
+  safe: { flex: 1 },
+  scrollContent: {
+    paddingHorizontal: kolmiPaddingX,
+    paddingTop: kolmiSpace.md,
+    paddingBottom: kolmiSpace.xxxl,
+    gap: kolmiSpace.xl,
+  },
+  header: {
+    gap: 4,
+  },
+  kicker: {
+    fontFamily: kolmiFonts.uiMedium,
+    fontSize: 10,
+    color: kolmiColors.textMuted,
+    letterSpacing: 2.6,
+    textTransform: 'uppercase',
+  },
+  title: {
+    fontFamily: kolmiFonts.serif,
+    fontSize: 34,
+    color: kolmiColors.text,
+    lineHeight: 40,
+    letterSpacing: -0.4,
+  },
+  subtitle: {
+    fontFamily: kolmiFonts.serifItalic,
+    fontSize: 16,
+    color: kolmiColors.textBody,
+    lineHeight: 22,
+    marginTop: 4,
+  },
+
+  // Empty state
+  emptyBlock: {
+    marginTop: kolmiSpace.xl,
+    alignItems: 'center',
+    gap: kolmiSpace.sm,
+    paddingHorizontal: kolmiSpace.lg,
+  },
+  emptyOrnament: {
+    width: 48,
+    height: 0.8,
+    backgroundColor: kolmiColors.accent,
+    marginBottom: kolmiSpace.sm,
+  },
+  emptyTitle: {
+    fontFamily: kolmiFonts.serif,
+    fontSize: 22,
+    color: kolmiColors.text,
+    lineHeight: 28,
+    textAlign: 'center',
+  },
+  emptyBody: {
+    fontFamily: kolmiFonts.serifItalic,
+    fontSize: 15,
+    color: kolmiColors.textBody,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+
+  // Section
+  section: {
+    gap: kolmiSpace.sm,
+  },
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: kolmiSpace.sm,
+  },
+  sectionRule: {
+    width: 24,
+    height: 0.6,
+    backgroundColor: kolmiColors.accent,
+  },
+  sectionLabel: {
+    fontFamily: kolmiFonts.uiMedium,
+    fontSize: 10,
+    color: kolmiColors.textBody,
+    letterSpacing: 2.6,
+    textTransform: 'uppercase',
+  },
+})
+
 const MeetingRow = React.memo(function MeetingRow({
   meeting,
   onSchedule,
@@ -260,68 +296,118 @@ const MeetingRow = React.memo(function MeetingRow({
 
   const cta =
     meeting.status === 'accepted_waiting_slots'
-      ? { text: 'Choisir mes disponibilités', onPress: schedulePress, primary: true }
+      ? { text: 'Choisir mes créneaux', onPress: schedulePress }
       : meeting.status === 'confirmed'
-        ? { text: 'Voir le rendez-vous', onPress: confirmPress, primary: true }
+        ? { text: 'Voir le rendez-vous', onPress: confirmPress }
         : null
 
   return (
-    <View
-      style={{
-        padding: kolmiSpace.md,
-        borderRadius: kolmiRadius.lg,
-        borderWidth: 1,
-        borderColor: 'rgba(22,19,15,0.12)',
-        backgroundColor: '#FAF8F5',
-        gap: kolmiSpace.xs,
-      }}
-    >
-      <Text
-        style={{
-          fontFamily: kolmiFonts.serif,
-          fontSize: 20,
-          color: kolmiColors.text,
-          letterSpacing: -0.2,
-        }}
-      >
-        {name}
-      </Text>
-      <Text
-        style={{
-          fontFamily: kolmiFonts.serifItalic,
-          fontSize: 14,
-          color: kolmiColors.textBody,
-        }}
-      >
-        {label}
-      </Text>
+    <View style={rowStyles.card}>
+      <View style={rowStyles.head}>
+        <View style={rowStyles.avatarWrap}>
+          {profile?.photoUrl ? (
+            <Image
+              source={{ uri: profile.photoUrl }}
+              style={rowStyles.avatar}
+              contentFit="cover"
+              transition={120}
+            />
+          ) : (
+            <View style={rowStyles.avatarPlaceholder}>
+              <Text style={rowStyles.avatarLetter}>
+                {profile?.firstName.charAt(0).toUpperCase() ?? '·'}
+              </Text>
+            </View>
+          )}
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={rowStyles.name}>{name}</Text>
+          <Text style={rowStyles.status}>{label}</Text>
+          {profile?.dnaLabel ? (
+            <Text style={rowStyles.maison}>{profile.dnaLabel}</Text>
+          ) : null}
+        </View>
+      </View>
       {cta && (
         <TouchableOpacity
           onPress={cta.onPress}
           activeOpacity={0.85}
-          style={{
-            marginTop: kolmiSpace.sm,
-            height: 44,
-            borderRadius: kolmiRadius.pill,
-            backgroundColor: cta.primary ? kolmiColors.text : 'transparent',
-            borderWidth: cta.primary ? 0 : 1,
-            borderColor: kolmiColors.outline,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
+          style={rowStyles.cta}
         >
-          <Text
-            style={{
-              fontFamily: kolmiFonts.uiSemiBold,
-              fontSize: 14,
-              color: cta.primary ? '#FAF8F5' : kolmiColors.text,
-              letterSpacing: 0.2,
-            }}
-          >
-            {cta.text}
-          </Text>
+          <Text style={rowStyles.ctaText}>{cta.text}</Text>
         </TouchableOpacity>
       )}
     </View>
   )
+})
+
+const rowStyles = StyleSheet.create({
+  card: {
+    padding: kolmiSpace.md,
+    borderRadius: kolmiRadius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(22,19,15,0.12)',
+    backgroundColor: '#FAF8F5',
+    gap: kolmiSpace.sm,
+  },
+  head: {
+    flexDirection: 'row',
+    gap: kolmiSpace.md,
+    alignItems: 'flex-start',
+  },
+  avatarWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    overflow: 'hidden',
+    backgroundColor: kolmiColors.surfaceSoft,
+  },
+  avatar: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarPlaceholder: {
+    flex: 1,
+    backgroundColor: '#EFE7DA',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarLetter: {
+    fontFamily: kolmiFonts.serif,
+    fontSize: 22,
+    color: kolmiColors.accent,
+  },
+  name: {
+    fontFamily: kolmiFonts.serif,
+    fontSize: 20,
+    color: kolmiColors.text,
+    letterSpacing: -0.2,
+  },
+  status: {
+    fontFamily: kolmiFonts.serifItalic,
+    fontSize: 14,
+    color: kolmiColors.textBody,
+    marginTop: 2,
+  },
+  maison: {
+    fontFamily: kolmiFonts.uiMedium,
+    fontSize: 11,
+    color: kolmiColors.textMuted,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
+    marginTop: 4,
+  },
+  cta: {
+    height: 44,
+    borderRadius: kolmiRadius.pill,
+    backgroundColor: kolmiColors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ctaText: {
+    fontFamily: kolmiFonts.uiSemiBold,
+    fontSize: 14,
+    color: kolmiColors.white,
+    letterSpacing: 0.2,
+  },
 })
