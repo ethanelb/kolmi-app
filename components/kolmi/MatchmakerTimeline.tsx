@@ -286,7 +286,10 @@ function renderEvent({
 const styles = StyleSheet.create({
   content: {
     paddingHorizontal: kolmiPaddingX,
-    paddingTop: kolmiSpace.sm,
+    // Pas de paddingTop — le contenu colle au header pour ramener la
+    // première carte vers le haut de l'écran. Le day_header se charge
+    // de la respiration courte.
+    paddingTop: 0,
     paddingBottom: kolmiSpace.xxxl * 2,
   },
   endBlock: {

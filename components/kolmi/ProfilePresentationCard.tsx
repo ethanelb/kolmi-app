@@ -238,10 +238,6 @@ function ProfilePresentationCard({ profile, stage, onReady, onPress }: Props) {
 
 const styles = StyleSheet.create({
   cardWrap: {
-    // 75 % de la largeur — auto-cadré par marginHorizontal qui se
-    // calcule via aspectRatio. En pratique, on laisse marginHorizontal
-    // décider via un paddingHorizontal sur le scroll parent + ce wrapper
-    // est centré.
     alignSelf: 'center',
     width: '100%',
     backgroundColor: '#FAF8F5',
@@ -249,7 +245,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: kolmiColors.outline,
     overflow: 'hidden',
-    marginVertical: kolmiSpace.md,
+    // Resserré : on veut que la carte vienne haut, pas qu'elle flotte
+    // au milieu de l'écran sous l'impression d'un grand vide.
+    marginTop: kolmiSpace.xs,
+    marginBottom: kolmiSpace.md,
   },
   cardPressed: {
     opacity: 0.94,

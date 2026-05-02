@@ -165,7 +165,8 @@ function toneTextStyle(tone: MessageTone) {
 
 const styles = StyleSheet.create({
   bubble: {
-    marginVertical: 14,
+    marginTop: 6,
+    marginBottom: 12,
     paddingRight: 28,
   },
   bubbleReaction: {

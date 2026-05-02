@@ -29,8 +29,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginTop: kolmiSpace.lg,
-    marginBottom: kolmiSpace.xl,
+    // Resserrement éditorial : la fiche du jour vient pratiquement
+    // toucher le kicker du tab — on n'a pas besoin de respirer 32 px
+    // au-dessus pour signaler une nouvelle journée.
+    marginTop: kolmiSpace.xs,
+    marginBottom: kolmiSpace.sm,
   },
   leftLine: {
     width: 96,
