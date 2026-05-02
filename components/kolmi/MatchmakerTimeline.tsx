@@ -79,6 +79,11 @@ function MatchmakerTimeline({
   // veut pas le téléporter en bas à chaque révélation.
   const scrollRef = useRef<ScrollView | null>(null)
   const nearBottomRef = useRef(true)
+  // Sur le PREMIER render, on doit toujours atterrir en bas (sinon
+  // l'utilisateur se retrouve "décalé vers le haut" parce que le
+  // contenu grandit encore — chargement des photos, type-in, etc.).
+  const isInitialMountRef = useRef(true)
+
   const onScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
       const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent
@@ -90,13 +95,31 @@ function MatchmakerTimeline({
     },
     [],
   )
+
+  // Snap au bas dès qu'un nouvel event apparaît côté frontier/total.
   useEffect(() => {
     if (!nearBottomRef.current) return
     const t = setTimeout(() => {
-      scrollRef.current?.scrollToEnd({ animated: true })
+      scrollRef.current?.scrollToEnd({ animated: !isInitialMountRef.current })
     }, 80)
     return () => clearTimeout(t)
   }, [frontier, total])
+
+  // Critical : quand la hauteur de contenu change (images qui finissent
+  // de charger, type-in qui pousse le texte, etc.), on re-snappe au bas
+  // si on était déjà collé au bas. Sans ça, le user voit la timeline
+  // glisser vers le haut au fur et à mesure que les photos arrivent.
+  const onContentSizeChange = useCallback(() => {
+    if (!nearBottomRef.current) return
+    // Le premier appel est synchrone avec le mount → instantané. Les
+    // suivants (image load) le sont aussi — pas d'animation pour ne pas
+    // décaler la lecture du user.
+    scrollRef.current?.scrollToEnd({ animated: false })
+    if (isInitialMountRef.current) {
+      // Une fois la première mesure passée, on autorise les animations.
+      isInitialMountRef.current = false
+    }
+  }, [])
 
   // Quand le frontier atteint la fin, on prévient le parent.
   const lastSettledIdRef = useRef<string | null>(null)
@@ -141,6 +164,7 @@ function MatchmakerTimeline({
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
       onScroll={onScroll}
+      onContentSizeChange={onContentSizeChange}
       scrollEventThrottle={120}
     >
       {events.map((ev, idx) => {
