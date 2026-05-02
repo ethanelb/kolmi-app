@@ -42,6 +42,12 @@ export type Meeting = {
   confirmedSlot?: string
   venueId?: string
   createdAt: string
+  // Petit mot optionnel attaché à la demande initiale (≤ 80 caractères).
+  note?: string
+  // Décision finale post-rdv : true = "on se revoit", false = "on en
+  // reste là". Sert à marquer un match mutuel quand les 2 disent oui.
+  feedbackByMe?: boolean
+  feedbackByOther?: boolean
 }
 
 export type Venue = {

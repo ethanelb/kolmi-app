@@ -47,3 +47,49 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     return null
   }
 }
+
+// Affiche immédiatement une notification locale. Utilisé par le mock
+// backend pour simuler les transitions côté autre (acceptation, choix
+// de slot, etc.). Pas besoin de permission token push — c'est uniquement
+// local. Sur simulateur où expo-notifications est inerte, on retombe en
+// silence sur un console.log.
+export async function presentLocalNotification(
+  title: string,
+  body: string,
+): Promise<void> {
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: { title, body },
+      trigger: null,
+    })
+  } catch (err) {
+    console.warn('[kolmi] presentLocalNotification failed', err)
+  }
+}
+
+// Planifie une notification à un instant donné. Renvoie l'identifiant
+// pour pouvoir l'annuler plus tard (cancelScheduledNotificationAsync).
+export async function scheduleNotificationAt(
+  date: Date,
+  title: string,
+  body: string,
+): Promise<string | null> {
+  try {
+    const id = await Notifications.scheduleNotificationAsync({
+      content: { title, body },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date },
+    })
+    return id
+  } catch (err) {
+    console.warn('[kolmi] scheduleNotificationAt failed', err)
+    return null
+  }
+}
+
+export async function cancelScheduledNotification(id: string): Promise<void> {
+  try {
+    await Notifications.cancelScheduledNotificationAsync(id)
+  } catch (err) {
+    console.warn('[kolmi] cancelScheduledNotification failed', err)
+  }
+}
