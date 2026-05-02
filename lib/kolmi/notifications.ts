@@ -93,3 +93,111 @@ export async function cancelScheduledNotification(id: string): Promise<void> {
     console.warn('[kolmi] cancelScheduledNotification failed', err)
   }
 }
+
+// ─── Rappels de rendez-vous ─────────────────────────────────────────
+//
+// Une fois un Meeting confirmé, on planifie 4 notifications éditoriales :
+//   • J-1 18h  : "Demain, vous voyez Léa à 20h."
+//   • Jour J 9h: "Aujourd'hui : Léa, 20h, Café de Flore."
+//   • À l'heure: "C'est l'heure de votre rendez-vous avec Léa."
+//   • H+5      : "Comment était votre rendez-vous avec Léa ?"
+//
+// Chaque schedule renvoie un id (ou null si push impossibles). On ne
+// persiste pas ces ids ici — c'est l'appelant qui décide de les garder
+// pour pouvoir annuler plus tard via cancelScheduledNotification.
+//
+// Les contenus sont en plain text — iOS/Android ne supportent pas
+// l'italique dans les push. La voix reste mate, sans emojis.
+
+export type MeetingReminderInput = {
+  // Date/heure du rendez-vous (ISO 8601 ou Date)
+  meetingAt: Date
+  // Prénom de l'autre, pour personnaliser le push.
+  otherName: string
+  // Optionnel : lieu (ex. "Café de Flore") pour le push du matin.
+  venue?: string
+  // Optionnel : heure formattée (ex. "20h00") pour les push.
+  timeLabel?: string
+}
+
+function setHour(d: Date, hour: number, minute = 0): Date {
+  const out = new Date(d)
+  out.setHours(hour, minute, 0, 0)
+  return out
+}
+
+export async function scheduleMeetingReminderJ1(
+  input: MeetingReminderInput,
+): Promise<string | null> {
+  // J-1 à 18h
+  const target = new Date(input.meetingAt)
+  target.setDate(target.getDate() - 1)
+  const at = setHour(target, 18, 0)
+  if (at.getTime() <= Date.now()) return null
+  const time = input.timeLabel ?? formatHm(input.meetingAt)
+  return scheduleNotificationAt(
+    at,
+    `Demain, vous voyez ${input.otherName}.`,
+    `Rendez-vous à ${time}${input.venue ? `, ${input.venue}` : ''}.`,
+  )
+}
+
+export async function scheduleMeetingReminderMorning(
+  input: MeetingReminderInput,
+): Promise<string | null> {
+  // Jour J à 9h
+  const at = setHour(new Date(input.meetingAt), 9, 0)
+  if (at.getTime() <= Date.now()) return null
+  const time = input.timeLabel ?? formatHm(input.meetingAt)
+  return scheduleNotificationAt(
+    at,
+    `Aujourd'hui : ${input.otherName}.`,
+    `${time}${input.venue ? ` · ${input.venue}` : ''}.`,
+  )
+}
+
+export async function scheduleMeetingReminderTime(
+  input: MeetingReminderInput,
+): Promise<string | null> {
+  // À l'heure exacte du rdv
+  const at = new Date(input.meetingAt)
+  if (at.getTime() <= Date.now()) return null
+  return scheduleNotificationAt(
+    at,
+    `C'est l'heure.`,
+    `Vous voyez ${input.otherName} maintenant.`,
+  )
+}
+
+export async function scheduleFeedbackPrompt(
+  input: MeetingReminderInput,
+): Promise<string | null> {
+  // H+5 (fenêtre standard d'un dîner)
+  const at = new Date(input.meetingAt.getTime() + 5 * 60 * 60 * 1000)
+  if (at.getTime() <= Date.now()) return null
+  return scheduleNotificationAt(
+    at,
+    `Comment était votre rendez-vous ?`,
+    `Avec ${input.otherName} — votre réponse en deux mots.`,
+  )
+}
+
+// Convenience : programme les 4 push d'un coup et renvoie leurs ids.
+// Stocker le tableau permet de tout annuler en bloc si le rdv est
+// annulé / modifié.
+export async function scheduleAllMeetingReminders(
+  input: MeetingReminderInput,
+): Promise<(string | null)[]> {
+  return Promise.all([
+    scheduleMeetingReminderJ1(input),
+    scheduleMeetingReminderMorning(input),
+    scheduleMeetingReminderTime(input),
+    scheduleFeedbackPrompt(input),
+  ])
+}
+
+function formatHm(d: Date): string {
+  const h = d.getHours()
+  const m = d.getMinutes()
+  return `${h}h${m === 0 ? '00' : String(m).padStart(2, '0')}`
+}
