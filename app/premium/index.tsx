@@ -31,6 +31,7 @@ import {
   getTokens,
   getSubscription,
   setSubscription,
+  markPurchased,
   type KolmiSubscription,
 } from '@/lib/kolmi/storage'
 import { select } from '@/lib/kolmi/haptics'
@@ -102,6 +103,7 @@ export default function PremiumScreen() {
       setSubmittingId(pack.id)
       try {
         const next = await addTokens(pack.tokens)
+        await markPurchased()
         setBalance(next)
         Alert.alert(
           'Tokens crédités',
@@ -132,6 +134,7 @@ export default function PremiumScreen() {
         lastTokenGrant: now,
       })
       const nextBalance = await addTokens(SUBSCRIPTION_TOKENS)
+      await markPurchased()
       setSubState(sub)
       setBalance(nextBalance)
       Alert.alert(

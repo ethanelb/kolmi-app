@@ -19,6 +19,7 @@ import {
   getTokens,
   getMeetings,
   isSubscribed,
+  getHasPurchased,
 } from '@/lib/kolmi/storage'
 import { safePersist } from '@/lib/kolmi/safePersist'
 import {
@@ -33,6 +34,52 @@ import {
 } from '@/lib/kolmi/conversationEngine'
 import type { KolmiDnaResult } from '@/lib/kolmi/types'
 
+// ─── Nudge premium — 3 variants en cycle ───────────────────────────
+//
+// À chaque palier de 3 décisions (3, 6, 9, …) on tire un nudge depuis
+// ce tableau, en cyclant. Le contenu varie pour ne pas lasser :
+// V1 = pitch global ; V2 = focus à la carte ; V3 = focus abonnement.
+
+type NudgeVariant = 'full' | 'a-la-carte' | 'abonnement'
+const NUDGE_VARIANTS: NudgeVariant[] = ['full', 'a-la-carte', 'abonnement']
+
+type NudgeContent = {
+  kicker: string
+  title: string
+  body: string
+  // Tuiles affichées sous le body — 2 pour le pitch global, 1 pour les
+  // pitches focalisés.
+  tiles: { kicker: string; price: string }[]
+  ctaLabel: string
+}
+
+const NUDGE_COPY: Record<NudgeVariant, NudgeContent> = {
+  full: {
+    kicker: 'Vous avancez',
+    title: 'Encore trois portraits.',
+    body: 'Continuez sans compter, ou choisissez votre rythme — packs à la pièce ou abonnement mensuel.',
+    tiles: [
+      { kicker: 'À la carte', price: 'dès 15 €' },
+      { kicker: 'Abonnement', price: '60 € / mois' },
+    ],
+    ctaLabel: 'Voir les formules',
+  },
+  'a-la-carte': {
+    kicker: 'À la pièce',
+    title: 'Trois rencontres choisies.',
+    body: 'Un pack de 3 tokens à 39 €, c\'est trois demandes posées sans précipitation. Le rythme reste à vous.',
+    tiles: [{ kicker: 'Pack 3 tokens', price: '39 €' }],
+    ctaLabel: 'Voir les packs',
+  },
+  abonnement: {
+    kicker: 'Sans compter',
+    title: 'L\'abonnement, pour les patients.',
+    body: '5 tokens chaque mois, profils par jour illimités, priorité éditoriale du matchmaker.',
+    tiles: [{ kicker: 'Abonnement KOLMI', price: '60 € / mois' }],
+    ctaLabel: 'En savoir plus',
+  },
+}
+
 // Le tab central — la conversation du jour avec le matchmaker.
 // À l'ouverture, on charge la conversation du jour (build depuis 0
 // si rien n'est persisté). À chaque décision, on patche le state +
@@ -44,7 +91,11 @@ export default function ConversationTabScreen() {
   const [showTokenAlert, setShowTokenAlert] = useState(false)
   const [pendingProfileId, setPendingProfileId] = useState<string | null>(null)
   const [subscribed, setSubscribed] = useState<boolean>(false)
+  const [hasPurchased, setHasPurchased] = useState<boolean>(false)
   const [showPremiumNudge, setShowPremiumNudge] = useState<boolean>(false)
+  // Variant du popup affiché — cycle 0 → 1 → 2 → 0… à chaque
+  // déclenchement pour ne pas répéter la même pitch trois fois.
+  const [nudgeVariant, setNudgeVariant] = useState<NudgeVariant>('full')
   // Index dans state.events à partir duquel on doit animer. Mis à jour
   // après chaque décision pour ne ré-animer que les nouveaux events.
   const [freshFromIndex, setFreshFromIndex] = useState(0)
@@ -52,28 +103,31 @@ export default function ConversationTabScreen() {
   // construite pour la première fois.
   const profilesRef = useRef<typeof mockSelectedProfiles>([])
   const dnaRef = useRef<KolmiDnaResult | null>(null)
-  // Compteur précédent de décisions — sert à détecter le franchissement
-  // du seuil de 3 (et pas seulement "≥ 3"). Le ref évite qu'une
-  // restauration d'état déclenche le nudge si le user a déjà 3 décisions.
+  // Compteur précédent de décisions — sert à détecter chaque
+  // franchissement de palier de 3 (3, 6, 9…). La restauration d'état
+  // initialise ce ref pour ne pas re-fire à l'ouverture.
   const prevDecisionCountRef = useRef(0)
-  // Garde-fou : un seul nudge par session, même si le compteur
-  // ping-pong à cause d'une réconciliation (back-out de /meeting/request).
-  const hasNudgedRef = useRef(false)
+  // Combien de fois le nudge a été tiré dans cette session — sert à
+  // choisir le variant suivant (cycle de 3).
+  const nudgeFireCountRef = useRef(0)
 
   // Charge la conversation à l'ouverture du tab + au focus.
   const load = useCallback(async () => {
     await cleanupOldConversations()
     const day = todayKey()
-    const [stored, dna, passed, balance, subscribed] = await Promise.all([
-      loadConversation(day),
-      getKolmiDnaResult(),
-      getPassedProfiles(),
-      getTokens(),
-      isSubscribed(),
-    ])
+    const [stored, dna, passed, balance, subscribed, purchased] =
+      await Promise.all([
+        loadConversation(day),
+        getKolmiDnaResult(),
+        getPassedProfiles(),
+        getTokens(),
+        isSubscribed(),
+        getHasPurchased(),
+      ])
     dnaRef.current = dna
     setTokens(balance)
     setSubscribed(subscribed)
+    setHasPurchased(purchased)
 
     if (stored) {
       // Conversation existante du jour — on la restaure tel quel,
@@ -116,21 +170,28 @@ export default function ConversationTabScreen() {
     load()
   }, [load])
 
-  // Nudge premium : quand l'utilisateur franchit 3 décisions dans cette
-  // session (et n'est pas abonné, et n'a pas déjà reçu le nudge), on
-  // ouvre la modale qui propose les deux formules. C'est un soft prompt
-  // — il ne bloque rien et ne s'affiche qu'une fois.
+  // Nudge premium : à chaque palier de 3 décisions (3, 6, 9…), on
+  // propose une formule. JAMAIS pour les abonnés ni pour ceux qui ont
+  // déjà acheté un pack au moins une fois. Cycle de 3 variants pour
+  // éviter la répétition.
   useEffect(() => {
-    if (!state || subscribed || hasNudgedRef.current) return
+    if (!state || subscribed || hasPurchased) return
     const count = state.events.filter(
       (e) => e.kind === 'user_decision',
     ).length
-    if (count >= 3 && prevDecisionCountRef.current < 3) {
-      hasNudgedRef.current = true
+    const prev = prevDecisionCountRef.current
+    // Détecte un franchissement de palier de 3 (3, 6, 9, 12, …) entre
+    // l'ancien et le nouveau count.
+    const crossedTier =
+      Math.floor(count / 3) > Math.floor(prev / 3) && count % 3 === 0
+    if (crossedTier) {
+      const idx = nudgeFireCountRef.current % NUDGE_VARIANTS.length
+      nudgeFireCountRef.current += 1
+      setNudgeVariant(NUDGE_VARIANTS[idx])
       setShowPremiumNudge(true)
     }
     prevDecisionCountRef.current = count
-  }, [state, subscribed])
+  }, [state, subscribed, hasPurchased])
 
   useFocusEffect(
     useCallback(() => {
@@ -332,9 +393,10 @@ export default function ConversationTabScreen() {
           </Pressable>
         </Modal>
 
-        {/* Modal "nudge premium" — apparaît une fois après la 3ᵉ
-            décision du jour pour proposer les deux formules. Ne s'affiche
-            jamais si l'utilisateur est déjà abonné. */}
+        {/* Modal "nudge premium" — apparaît à chaque palier de 3
+            décisions pour les utilisateurs non abonnés et qui n'ont
+            jamais acheté de tokens. Cycle de 3 variants pour éviter la
+            répétition. */}
         <Modal
           visible={showPremiumNudge}
           transparent
@@ -347,23 +409,30 @@ export default function ConversationTabScreen() {
               onPress={(e) => e.stopPropagation()}
             >
               <View style={styles.modalRule} />
-              <Text style={styles.modalKicker}>Vous avancez</Text>
-              <Text style={styles.modalTitle}>Trois portraits derrière vous.</Text>
+              <Text style={styles.modalKicker}>
+                {NUDGE_COPY[nudgeVariant].kicker}
+              </Text>
+              <Text style={styles.modalTitle}>
+                {NUDGE_COPY[nudgeVariant].title}
+              </Text>
               <Text style={styles.modalBody}>
-                Continuez sans compter, ou choisissez votre rythme — packs à
-                la pièce ou abonnement mensuel.
+                {NUDGE_COPY[nudgeVariant].body}
               </Text>
 
               <View style={styles.nudgeFormulas}>
-                <View style={styles.nudgeFormula}>
-                  <Text style={styles.nudgeFormulaKicker}>À la carte</Text>
-                  <Text style={styles.nudgeFormulaPrice}>dès 15 €</Text>
-                </View>
-                <View style={styles.nudgeFormulaSeparator} />
-                <View style={styles.nudgeFormula}>
-                  <Text style={styles.nudgeFormulaKicker}>Abonnement</Text>
-                  <Text style={styles.nudgeFormulaPrice}>60 € / mois</Text>
-                </View>
+                {NUDGE_COPY[nudgeVariant].tiles.map((tile, i, arr) => (
+                  <React.Fragment key={tile.kicker}>
+                    <View style={styles.nudgeFormula}>
+                      <Text style={styles.nudgeFormulaKicker}>
+                        {tile.kicker}
+                      </Text>
+                      <Text style={styles.nudgeFormulaPrice}>{tile.price}</Text>
+                    </View>
+                    {i < arr.length - 1 && (
+                      <View style={styles.nudgeFormulaSeparator} />
+                    )}
+                  </React.Fragment>
+                ))}
               </View>
 
               <View style={styles.modalActions}>
@@ -379,7 +448,9 @@ export default function ConversationTabScreen() {
                   activeOpacity={0.85}
                   style={styles.modalConfirm}
                 >
-                  <Text style={styles.modalConfirmText}>Voir les formules</Text>
+                  <Text style={styles.modalConfirmText}>
+                    {NUDGE_COPY[nudgeVariant].ctaLabel}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </Pressable>

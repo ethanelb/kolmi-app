@@ -14,6 +14,7 @@ const PASSED_PROFILES_KEY = 'kolmi.passed_profiles'
 const MEETINGS_KEY = 'kolmi.meetings'
 const PUSH_TOKEN_KEY = 'kolmi.push_token'
 const SUBSCRIPTION_KEY = 'kolmi.subscription'
+const HAS_PURCHASED_KEY = 'kolmi.has_purchased'
 
 export type KolmiProgress = {
   hasCompletedBaseOnboarding: boolean
@@ -291,6 +292,24 @@ export async function isSubscribed(): Promise<boolean> {
   return sub.isActive
 }
 
+// Flag : l'utilisateur a-t-il déjà payé une fois ? (pack OU abo).
+// Sert au nudge premium pour ne plus harceler ceux qui ont déjà
+// converti. Une fois passé à true, on ne le repasse JAMAIS à false
+// (sauf reset complet) — un user qui résilie son abo reste un client.
+let _hasPurchasedCache: boolean | undefined
+
+export async function getHasPurchased(): Promise<boolean> {
+  if (_hasPurchasedCache !== undefined) return _hasPurchasedCache
+  const raw = await AsyncStorage.getItem(HAS_PURCHASED_KEY)
+  _hasPurchasedCache = raw === '1'
+  return _hasPurchasedCache
+}
+
+export async function markPurchased(): Promise<void> {
+  _hasPurchasedCache = true
+  await AsyncStorage.setItem(HAS_PURCHASED_KEY, '1')
+}
+
 // ─── Passed profiles (locally hidden) ────────────────────────────────
 
 export async function getPassedProfiles(): Promise<string[]> {
@@ -390,6 +409,7 @@ export async function resetKolmiState() {
   _prefsCache = undefined
   _tokensCache = -1
   _subscriptionCache = undefined
+  _hasPurchasedCache = undefined
   await Promise.all([
     AsyncStorage.multiRemove([
       PROGRESS_KEY,
@@ -402,6 +422,7 @@ export async function resetKolmiState() {
       MEETINGS_KEY,
       PUSH_TOKEN_KEY,
       SUBSCRIPTION_KEY,
+      HAS_PURCHASED_KEY,
     ]),
     // Les conversations sont indexées par dayKey, donc absentes des
     // clés statiques ci-dessus. Sans ce wipe, un re-onboarding le
