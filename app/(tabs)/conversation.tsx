@@ -43,6 +43,8 @@ export default function ConversationTabScreen() {
   const [tokens, setTokens] = useState<number>(0)
   const [showTokenAlert, setShowTokenAlert] = useState(false)
   const [pendingProfileId, setPendingProfileId] = useState<string | null>(null)
+  const [subscribed, setSubscribed] = useState<boolean>(false)
+  const [showPremiumNudge, setShowPremiumNudge] = useState<boolean>(false)
   // Index dans state.events à partir duquel on doit animer. Mis à jour
   // après chaque décision pour ne ré-animer que les nouveaux events.
   const [freshFromIndex, setFreshFromIndex] = useState(0)
@@ -50,6 +52,13 @@ export default function ConversationTabScreen() {
   // construite pour la première fois.
   const profilesRef = useRef<typeof mockSelectedProfiles>([])
   const dnaRef = useRef<KolmiDnaResult | null>(null)
+  // Compteur précédent de décisions — sert à détecter le franchissement
+  // du seuil de 3 (et pas seulement "≥ 3"). Le ref évite qu'une
+  // restauration d'état déclenche le nudge si le user a déjà 3 décisions.
+  const prevDecisionCountRef = useRef(0)
+  // Garde-fou : un seul nudge par session, même si le compteur
+  // ping-pong à cause d'une réconciliation (back-out de /meeting/request).
+  const hasNudgedRef = useRef(false)
 
   // Charge la conversation à l'ouverture du tab + au focus.
   const load = useCallback(async () => {
@@ -64,12 +73,19 @@ export default function ConversationTabScreen() {
     ])
     dnaRef.current = dna
     setTokens(balance)
+    setSubscribed(subscribed)
 
     if (stored) {
       // Conversation existante du jour — on la restaure tel quel,
       // freshFromIndex = events.length pour ne rien ré-animer.
       setState(stored)
       setFreshFromIndex(stored.events.length)
+      // Initialise le compteur sur la valeur restaurée — un user qui
+      // ouvre l'app avec 5 décisions déjà prises ne doit PAS recevoir
+      // le nudge (il est arrivé là hier, ou il l'a déjà ignoré).
+      prevDecisionCountRef.current = stored.events.filter(
+        (e) => e.kind === 'user_decision',
+      ).length
       // Reconstruit la liste des profils référés par la conversation
       // pour pouvoir les passer à recordDecision.
       profilesRef.current = stored.profileIds
@@ -77,6 +93,8 @@ export default function ConversationTabScreen() {
         .filter((p): p is (typeof mockSelectedProfiles)[number] => p !== undefined)
       return
     }
+    // Pas de stored → toute nouvelle journée, compteur à 0.
+    prevDecisionCountRef.current = 0
 
     // Première ouverture du jour — on génère la sélection (exclut les
     // profils déjà passés). Cap : 10 par défaut, ILLIMITÉ pour les
@@ -97,6 +115,22 @@ export default function ConversationTabScreen() {
   useEffect(() => {
     load()
   }, [load])
+
+  // Nudge premium : quand l'utilisateur franchit 3 décisions dans cette
+  // session (et n'est pas abonné, et n'a pas déjà reçu le nudge), on
+  // ouvre la modale qui propose les deux formules. C'est un soft prompt
+  // — il ne bloque rien et ne s'affiche qu'une fois.
+  useEffect(() => {
+    if (!state || subscribed || hasNudgedRef.current) return
+    const count = state.events.filter(
+      (e) => e.kind === 'user_decision',
+    ).length
+    if (count >= 3 && prevDecisionCountRef.current < 3) {
+      hasNudgedRef.current = true
+      setShowPremiumNudge(true)
+    }
+    prevDecisionCountRef.current = count
+  }, [state, subscribed])
 
   useFocusEffect(
     useCallback(() => {
@@ -221,6 +255,12 @@ export default function ConversationTabScreen() {
     router.push('/premium')
   }, [router])
 
+  const closeNudge = useCallback(() => setShowPremiumNudge(false), [])
+  const nudgeGoPremium = useCallback(() => {
+    setShowPremiumNudge(false)
+    router.push('/premium')
+  }, [router])
+
   return (
     <View style={styles.root}>
       <GrainOverlay />
@@ -286,6 +326,60 @@ export default function ConversationTabScreen() {
                   style={styles.modalConfirm}
                 >
                   <Text style={styles.modalConfirmText}>Voir les recharges</Text>
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        {/* Modal "nudge premium" — apparaît une fois après la 3ᵉ
+            décision du jour pour proposer les deux formules. Ne s'affiche
+            jamais si l'utilisateur est déjà abonné. */}
+        <Modal
+          visible={showPremiumNudge}
+          transparent
+          animationType="fade"
+          onRequestClose={closeNudge}
+        >
+          <Pressable style={styles.modalBackdrop} onPress={closeNudge}>
+            <Pressable
+              style={styles.modalCard}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <View style={styles.modalRule} />
+              <Text style={styles.modalKicker}>Vous avancez</Text>
+              <Text style={styles.modalTitle}>Trois portraits derrière vous.</Text>
+              <Text style={styles.modalBody}>
+                Continuez sans compter, ou choisissez votre rythme — packs à
+                la pièce ou abonnement mensuel.
+              </Text>
+
+              <View style={styles.nudgeFormulas}>
+                <View style={styles.nudgeFormula}>
+                  <Text style={styles.nudgeFormulaKicker}>À la carte</Text>
+                  <Text style={styles.nudgeFormulaPrice}>dès 15 €</Text>
+                </View>
+                <View style={styles.nudgeFormulaSeparator} />
+                <View style={styles.nudgeFormula}>
+                  <Text style={styles.nudgeFormulaKicker}>Abonnement</Text>
+                  <Text style={styles.nudgeFormulaPrice}>60 € / mois</Text>
+                </View>
+              </View>
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  onPress={closeNudge}
+                  activeOpacity={0.7}
+                  style={styles.modalCancel}
+                >
+                  <Text style={styles.modalCancelText}>Plus tard</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={nudgeGoPremium}
+                  activeOpacity={0.85}
+                  style={styles.modalConfirm}
+                >
+                  <Text style={styles.modalConfirmText}>Voir les formules</Text>
                 </TouchableOpacity>
               </View>
             </Pressable>
@@ -397,6 +491,41 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: kolmiSpace.sm,
     marginTop: kolmiSpace.lg,
+  },
+
+  // Nudge premium — bandeau "deux formules" intégré dans la modale.
+  nudgeFormulas: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    marginTop: kolmiSpace.md,
+    paddingVertical: kolmiSpace.sm,
+    borderTopWidth: 0.6,
+    borderBottomWidth: 0.6,
+    borderColor: 'rgba(22,19,15,0.15)',
+  },
+  nudgeFormula: {
+    flex: 1,
+    paddingVertical: 4,
+    alignItems: 'flex-start',
+  },
+  nudgeFormulaKicker: {
+    fontFamily: kolmiFonts.uiSemiBold,
+    fontSize: 10,
+    color: kolmiColors.textSecondary,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
+  },
+  nudgeFormulaPrice: {
+    fontFamily: kolmiFonts.serif,
+    fontSize: 17,
+    color: kolmiColors.text,
+    letterSpacing: -0.2,
+    marginTop: 4,
+  },
+  nudgeFormulaSeparator: {
+    width: 0.6,
+    backgroundColor: 'rgba(22,19,15,0.15)',
+    marginHorizontal: kolmiSpace.md,
   },
   modalCancel: {
     paddingHorizontal: kolmiSpace.md,
