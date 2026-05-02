@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react'
-import { ScrollView, Text, TouchableOpacity, View, StyleSheet } from 'react-native'
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
+import { RefreshControl, ScrollView, Text, TouchableOpacity, View, StyleSheet } from 'react-native'
 import { Image } from 'expo-image'
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -104,20 +104,40 @@ export default function EncountersScreen() {
   const [meetings, setMeetings] = useState<Meeting[]>(() => mergeMeetings([]))
   const [passed, setPassed] = useState<string[]>([])
 
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const refresh = useCallback(() => {
-    Promise.all([getMeetings(), getPassedProfiles()]).then(([m, p]) => {
+    return Promise.all([getMeetings(), getPassedProfiles()]).then(([m, p]) => {
       setMeetings(mergeMeetings(m))
       setPassed(p)
     })
   }, [])
 
+  const onPullRefresh = useCallback(async () => {
+    setIsRefreshing(true)
+    try {
+      await refresh()
+    } finally {
+      setIsRefreshing(false)
+    }
+  }, [refresh])
+
   useEffect(() => {
     refresh()
   }, [refresh])
 
+  // Le mock backend (simulateOtherDecision/SlotChoice/Feedback) patche
+  // AsyncStorage de façon asynchrone via setTimeout. Quand le tab est
+  // visible, on poll toutes les 12 s pour refléter ces changements sans
+  // forcer l'utilisateur à quitter/revenir.
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   useFocusEffect(
     useCallback(() => {
       refresh()
+      pollRef.current = setInterval(refresh, 12000)
+      return () => {
+        if (pollRef.current) clearInterval(pollRef.current)
+        pollRef.current = null
+      }
     }, [refresh]),
   )
 
@@ -193,6 +213,14 @@ export default function EncountersScreen() {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onPullRefresh}
+              tintColor={kolmiColors.accent}
+              colors={[kolmiColors.accent]}
+            />
+          }
         >
           {segment === 'active' && (
             <ActiveView
