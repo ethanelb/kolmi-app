@@ -17,6 +17,7 @@ import {
   getPassedProfiles,
   passProfile,
   getTokens,
+  getMeetings,
 } from '@/lib/kolmi/storage'
 import { safePersist } from '@/lib/kolmi/safePersist'
 import {
@@ -111,7 +112,51 @@ export default function ConversationTabScreen() {
         }
         return prev
       })
-    }, [load]),
+
+      // Réconciliation décision « Demander » : si on est rentré dans la
+      // page /meeting/request mais qu'on en est ressorti sans confirmer,
+      // on ne doit PAS marquer le profil comme demandé. À l'inverse, si
+      // un meeting existe vraiment pour ce profileId, on patche la
+      // timeline avec le user_decision approprié.
+      if (!pendingProfileId) return
+      const profileId = pendingProfileId
+      ;(async () => {
+        try {
+          const meetings = await getMeetings()
+          const hasMeeting = meetings.some(
+            (m) => m.profileId === profileId && m.status !== 'declined',
+          )
+          setPendingProfileId(null)
+          if (!hasMeeting) return
+          // Le meeting existe → on enregistre la décision et on persiste.
+          setState((prev) => {
+            if (!prev) return prev
+            // Si déjà enregistré (e.g. user a rebondi 2 fois), no-op.
+            const already = prev.events.some(
+              (e) =>
+                e.kind === 'user_decision' &&
+                e.profileId === profileId &&
+                e.choice === 'request',
+            )
+            if (already) return prev
+            const next = recordDecision(
+              prev,
+              profileId,
+              'request',
+              profilesRef.current,
+              dnaRef.current,
+            )
+            setFreshFromIndex(prev.events.length)
+            saveConversation(next).catch(() => {})
+            return next
+          })
+        } catch {
+          // Au pire, on laisse l'utilisateur réessayer — pas de signal
+          // utile à pousser ici.
+          setPendingProfileId(null)
+        }
+      })()
+    }, [load, pendingProfileId]),
   )
 
   const handleDecision = useCallback(
@@ -121,28 +166,15 @@ export default function ConversationTabScreen() {
       if (choice === 'request') {
         // Token guard : si 0 tokens, on bloque ici. Si OK, on navigue
         // vers /meeting/request/[id] qui se charge du SwipeToConfirm
-        // final. La décision côté conversation n'est pas encore
-        // enregistrée — elle le sera UNE FOIS le rdv vraiment demandé
-        // (depuis l'écran request, on revient et on patche le state).
+        // final. On NE record PAS la décision tout de suite — sinon un
+        // user qui back out de la confirmation verrait son MiniRecap
+        // « Demandé » alors qu'aucun meeting n'a été créé. La timeline
+        // est patchée au retour si on détecte un meeting effectif.
         if (tokens <= 0) {
           setShowTokenAlert(true)
           return
         }
         setPendingProfileId(profileId)
-        // On enregistre la décision optimistiquement — si l'user annule
-        // sur l'écran request, on aura un MiniRecap "Demandé" dans la
-        // timeline du jour. Compromis acceptable : la friction du
-        // SwipeToConfirm est ailleurs.
-        const next = recordDecision(
-          state,
-          profileId,
-          'request',
-          profilesRef.current,
-          dnaRef.current,
-        )
-        setState(next)
-        setFreshFromIndex(state.events.length) // animes les nouveaux
-        saveConversation(next).catch(() => {})
         router.push(`/meeting/request/${profileId}`)
         return
       }
