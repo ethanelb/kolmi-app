@@ -1,12 +1,33 @@
+import type { DnaCategoryId } from './kolmiDna'
+
+// Champs hérités (compatibility, reason, intentions...) gardés pour ne
+// pas casser l'écran détail tant que l'enrichissement data n'est pas
+// fini. Les champs nouveaux (occupation, teaser, photoUrls, maisonId,
+// bio, prompts) sont optionnels et viennent recouvrir les anciens dès
+// qu'ils sont fournis. Cf. tâche "Acte I — mockSelectedProfiles
+// enrichir" pour la migration complète.
 export type SelectedProfile = {
   id: string
   firstName: string
   age: number
   city: string
   dnaLabel: string
+  // Nouveau : id de la Maison cible (link vers data/kolmiDna.ts).
+  maisonId?: DnaCategoryId
+  // Nouveau : profession affichée sous le prénom (« Architecte · Lyon »).
+  occupation?: string
+  // Nouveau : phrase éditoriale courte du matchmaker (≤ 110 caractères).
+  // Tant que vide, on retombe sur `reason` pour ne pas casser l'écran.
+  teaser?: string
+  /** @deprecated Match score numérique — banni par le brief. */
   compatibility: number
   reason: string
   photoUrl?: string
+  // Nouveau : galerie pour l'écran détail (3-6 photos). photoUrl reste
+  // utilisé comme fallback principal de la carte.
+  photoUrls?: string[]
+  bio?: string
+  prompts?: { question: string; answer: string }[]
   intentions: string
   interests: string[]
   compatibilityPoints: string[]

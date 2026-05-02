@@ -5,7 +5,10 @@ import { kolmiColors, kolmiFonts, kolmiRadius } from '@/constants/kolmiTheme'
 import KolmiWordmark from '@/components/kolmi/KolmiWordmark'
 
 type Props = {
-  height: number
+  // Hauteur explicite (en pixels). Si omis, le placeholder se cale sur
+  // son parent via height: '100%' — utile quand un wrapper impose déjà
+  // l'aspectRatio.
+  height?: number
   initial?: string
   borderRadius?: number
   style?: ViewStyle
@@ -21,6 +24,10 @@ export default function ProfilePhotoPlaceholder({
   style,
   profileId,
 }: Props) {
+  // Quand on n'a pas de hauteur, on prend 100 % du parent pour laisser
+  // l'aspectRatio du parent contrôler la taille. Pour les calculs
+  // d'inner sizing on retombe sur une hauteur typique (400 px).
+  const computedHeight = height ?? 400
   const letter = (initial ?? '').trim().charAt(0).toUpperCase()
 
   useEffect(() => {
@@ -38,7 +45,7 @@ export default function ProfilePhotoPlaceholder({
       style={[
         {
           width: '100%',
-          height,
+          height: height ?? '100%',
           borderRadius,
           overflow: 'hidden',
           backgroundColor: kolmiColors.surfaceSoft,
@@ -55,8 +62,8 @@ export default function ProfilePhotoPlaceholder({
         {letter ? (
           <View
             style={{
-              width: Math.min(height * 0.42, 132),
-              height: Math.min(height * 0.42, 132),
+              width: Math.min(computedHeight * 0.42, 132),
+              height: Math.min(computedHeight * 0.42, 132),
               borderRadius: kolmiRadius.pill,
               borderWidth: 1,
               borderColor: 'rgba(139,26,26,0.25)',
@@ -68,7 +75,7 @@ export default function ProfilePhotoPlaceholder({
             <Text
               style={{
                 fontFamily: kolmiFonts.serif,
-                fontSize: Math.min(height * 0.22, 64),
+                fontSize: Math.min(computedHeight * 0.22, 64),
                 color: kolmiColors.accent,
                 letterSpacing: -0.5,
                 includeFontPadding: false,
@@ -79,7 +86,7 @@ export default function ProfilePhotoPlaceholder({
             </Text>
           </View>
         ) : (
-          <KolmiWordmark size={Math.min(height * 0.18, 52)} color={kolmiColors.accent} />
+          <KolmiWordmark size={Math.min(computedHeight * 0.18, 52)} color={kolmiColors.accent} />
         )}
       </LinearGradient>
     </View>
