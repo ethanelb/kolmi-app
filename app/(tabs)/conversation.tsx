@@ -76,12 +76,15 @@ export default function ConversationTabScreen() {
       return
     }
 
-    // Première ouverture du jour — on génère la sélection (3 max,
+    // Première ouverture du jour — on génère la sélection (cap 10,
     // exclut featured et passés) puis on construit la conversation.
+    // Le cap est volontairement large : avec ~7 profils non-featured
+    // dans le mock, tout passe ; au-delà, on évite une journée trop
+    // longue.
     const candidates = mockSelectedProfiles
       .filter((p) => !p.isFeatured)
       .filter((p) => !passed.includes(p.id))
-      .slice(0, 3)
+      .slice(0, 10)
     profilesRef.current = candidates
 
     const fresh = buildDayConversation(candidates, dna)
