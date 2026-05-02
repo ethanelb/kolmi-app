@@ -1,7 +1,16 @@
-import React, { useState } from 'react'
-import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import React, { useMemo, useRef, useState } from 'react'
+import {
+  ActivityIndicator,
+  Dimensions,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native'
 import { Image } from 'expo-image'
-import Animated, { FadeIn, FadeInDown, FadeInUp, ZoomIn } from 'react-native-reanimated'
+import Animated, { FadeIn, FadeInUp, ZoomIn } from 'react-native-reanimated'
 import Svg, { Path } from 'react-native-svg'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -71,33 +80,17 @@ export default function MatchDetailScreen() {
           }}
           showsVerticalScrollIndicator={false}
         >
-          {profile.photoUrl ? (
-            <Animated.Image
-              entering={FadeIn.delay(40)
-                .duration(kolmiMotion.duration.xl)
-                .easing(kolmiMotion.easing.expoOut)}
-              source={{ uri: profile.photoUrl }}
-              style={{
-                width: '100%',
-                height: 380,
-                borderRadius: kolmiRadius.lg,
-                backgroundColor: kolmiColors.surfaceSoft,
-              }}
-            />
-          ) : (
-            <Animated.View
-              entering={FadeIn.delay(40)
-                .duration(kolmiMotion.duration.xl)
-                .easing(kolmiMotion.easing.expoOut)}
-            >
-              <ProfilePhotoPlaceholder
-                height={380}
-                initial={profile.firstName}
-                borderRadius={kolmiRadius.lg}
-                profileId={profile.id}
-              />
-            </Animated.View>
-          )}
+          <PhotoGallery
+            photos={
+              profile.photoUrls && profile.photoUrls.length > 0
+                ? profile.photoUrls
+                : profile.photoUrl
+                  ? [profile.photoUrl]
+                  : []
+            }
+            firstName={profile.firstName}
+            profileId={profile.id}
+          />
 
           <Animated.View
             entering={FadeInUp.delay(staggerDelay(0, 120))
@@ -164,9 +157,38 @@ export default function MatchDetailScreen() {
             </Text>
           </Animated.View>
 
-          {profile.intentions && (
+          {profile.bio && (
             <Animated.View
               entering={FadeInUp.delay(staggerDelay(2, 120))
+                .duration(kolmiMotion.duration.lg)
+                .easing(kolmiMotion.easing.soft)}
+            >
+              <DetailBlock label="En quelques mots" italic>
+                {profile.bio}
+              </DetailBlock>
+            </Animated.View>
+          )}
+
+          {profile.prompts && profile.prompts.length > 0 && (
+            <Animated.View
+              entering={FadeInUp.delay(staggerDelay(3, 120))
+                .duration(kolmiMotion.duration.lg)
+                .easing(kolmiMotion.easing.soft)}
+              style={{ gap: kolmiSpace.md }}
+            >
+              {profile.prompts.map((p, i) => (
+                <PromptBlock
+                  key={`${profile.id}-prompt-${i}`}
+                  question={p.question}
+                  answer={p.answer}
+                />
+              ))}
+            </Animated.View>
+          )}
+
+          {profile.intentions && (
+            <Animated.View
+              entering={FadeInUp.delay(staggerDelay(4, 120))
                 .duration(kolmiMotion.duration.lg)
                 .easing(kolmiMotion.easing.soft)}
             >
@@ -178,7 +200,7 @@ export default function MatchDetailScreen() {
 
           {profile.compatibilityPoints?.length > 0 && (
             <Animated.View
-              entering={FadeInUp.delay(staggerDelay(3, 120))
+              entering={FadeInUp.delay(staggerDelay(5, 120))
                 .duration(kolmiMotion.duration.lg)
                 .easing(kolmiMotion.easing.soft)}
             >
@@ -188,7 +210,7 @@ export default function MatchDetailScreen() {
 
           {profile.cautionPoints?.length > 0 && (
             <Animated.View
-              entering={FadeInUp.delay(staggerDelay(4, 120))
+              entering={FadeInUp.delay(staggerDelay(6, 120))
                 .duration(kolmiMotion.duration.lg)
                 .easing(kolmiMotion.easing.soft)}
             >
@@ -202,7 +224,7 @@ export default function MatchDetailScreen() {
 
           {profile.interests?.length > 0 && (
             <Animated.View
-              entering={FadeInUp.delay(staggerDelay(5, 120))
+              entering={FadeInUp.delay(staggerDelay(7, 120))
                 .duration(kolmiMotion.duration.lg)
                 .easing(kolmiMotion.easing.soft)}
               style={{ gap: kolmiSpace.xs }}
@@ -249,7 +271,7 @@ export default function MatchDetailScreen() {
 
           {profile.availabilityHint && (
             <Animated.View
-              entering={FadeInUp.delay(staggerDelay(6, 120))
+              entering={FadeInUp.delay(staggerDelay(8, 120))
                 .duration(kolmiMotion.duration.lg)
                 .easing(kolmiMotion.easing.soft)}
             >
@@ -260,7 +282,7 @@ export default function MatchDetailScreen() {
           )}
 
           <Animated.View
-            entering={FadeInUp.delay(staggerDelay(7, 120))
+            entering={FadeInUp.delay(staggerDelay(9, 120))
               .duration(kolmiMotion.duration.lg)
               .easing(kolmiMotion.easing.soft)}
             style={{ gap: kolmiSpace.sm, marginTop: kolmiSpace.sm }}
@@ -322,6 +344,184 @@ export default function MatchDetailScreen() {
           </Animated.View>
         </ScrollView>
       </SafeAreaView>
+    </View>
+  )
+}
+
+// Galerie de photos horizontale, paginée. Si une seule photo (ou
+// `photoUrl` seul), on retombe sur un affichage statique sans dots.
+// L'image est edge-to-edge (négatif sur paddingHorizontal du parent).
+function PhotoGallery({
+  photos,
+  firstName,
+  profileId,
+}: {
+  photos: string[]
+  firstName: string
+  profileId: string
+}) {
+  const screenWidth = useMemo(() => Dimensions.get('window').width, [])
+  // L'image colle aux bords écran — on rattrape le paddingX du parent.
+  const photoWidth = screenWidth
+  const photoHeight = 480
+  const [index, setIndex] = useState(0)
+  const scrollRef = useRef<ScrollView | null>(null)
+
+  if (photos.length === 0) {
+    return (
+      <Animated.View
+        entering={FadeIn.delay(40)
+          .duration(kolmiMotion.duration.xl)
+          .easing(kolmiMotion.easing.expoOut)}
+        style={{ marginHorizontal: -kolmiPaddingX }}
+      >
+        <ProfilePhotoPlaceholder
+          height={photoHeight}
+          initial={firstName}
+          borderRadius={0}
+          profileId={profileId}
+        />
+      </Animated.View>
+    )
+  }
+
+  const onMomentumEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const x = e.nativeEvent.contentOffset.x
+    const next = Math.round(x / photoWidth)
+    if (next !== index) setIndex(next)
+  }
+
+  return (
+    <Animated.View
+      entering={FadeIn.delay(40)
+        .duration(kolmiMotion.duration.xl)
+        .easing(kolmiMotion.easing.expoOut)}
+      style={{ marginHorizontal: -kolmiPaddingX }}
+    >
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={onMomentumEnd}
+        scrollEnabled={photos.length > 1}
+      >
+        {photos.map((uri, i) => (
+          <Image
+            key={`${profileId}-photo-${i}`}
+            source={{ uri }}
+            style={{
+              width: photoWidth,
+              height: photoHeight,
+              backgroundColor: kolmiColors.surfaceSoft,
+            }}
+            contentFit="cover"
+          />
+        ))}
+      </ScrollView>
+
+      {photos.length > 1 && (
+        <View
+          style={{
+            position: 'absolute',
+            bottom: 14,
+            left: 0,
+            right: 0,
+            flexDirection: 'row',
+            justifyContent: 'center',
+            gap: 6,
+          }}
+        >
+          {photos.map((_, i) => (
+            <View
+              key={`dot-${i}`}
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: 3,
+                backgroundColor:
+                  i === index ? kolmiColors.white : 'rgba(255,255,255,0.45)',
+              }}
+            />
+          ))}
+        </View>
+      )}
+
+      {photos.length > 1 && (
+        <View
+          style={{
+            position: 'absolute',
+            top: 14,
+            right: 14,
+            paddingHorizontal: 8,
+            paddingVertical: 3,
+            borderRadius: 999,
+            backgroundColor: 'rgba(20,15,12,0.55)',
+          }}
+        >
+          <Text
+            style={{
+              fontFamily: kolmiFonts.uiSemiBold,
+              fontSize: 11,
+              color: kolmiColors.white,
+              letterSpacing: 0.4,
+            }}
+          >
+            {index + 1} / {photos.length}
+          </Text>
+        </View>
+      )}
+    </Animated.View>
+  )
+}
+
+// Prompt éditorial — question en kicker uppercase, réponse en italique
+// serif. Hairline bordeaux à gauche pour signer la verticale.
+function PromptBlock({
+  question,
+  answer,
+}: {
+  question: string
+  answer: string
+}) {
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        gap: kolmiSpace.sm,
+        alignItems: 'stretch',
+      }}
+    >
+      <View
+        style={{
+          width: 1.5,
+          backgroundColor: kolmiColors.accent,
+          opacity: 0.55,
+        }}
+      />
+      <View style={{ flex: 1, gap: 4, paddingVertical: 2 }}>
+        <Text
+          style={{
+            fontFamily: kolmiFonts.uiSemiBold,
+            fontSize: 10,
+            color: kolmiColors.textSecondary,
+            textTransform: 'uppercase',
+            letterSpacing: 1.6,
+          }}
+        >
+          {question}
+        </Text>
+        <Text
+          style={{
+            fontFamily: kolmiFonts.serifItalic,
+            fontSize: 17,
+            color: kolmiColors.text,
+            lineHeight: 24,
+          }}
+        >
+          « {answer} »
+        </Text>
+      </View>
     </View>
   )
 }
