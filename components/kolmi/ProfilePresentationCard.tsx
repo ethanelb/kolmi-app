@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { View, Text, Pressable, StyleSheet, AccessibilityInfo } from 'react-native'
 import { Image } from 'expo-image'
 import Animated, {
@@ -23,11 +23,16 @@ import type { ProfileStage } from '@/lib/kolmi/conversationEngine'
 type Props = {
   profile: SelectedProfile
   stage: ProfileStage
+  // Si true, on joue la séquence de build (animation caractère/ligne
+  // par ligne). Si false, on rend immédiatement la carte construite —
+  // utilisé quand on restaure une conversation persistée pour ne pas
+  // ré-animer les cartes déjà vues.
+  isFresh?: boolean
   // Callback dès que toutes les animations de building sont finies.
   // L'orchestrateur peut alors marker le profil 'ready' et révéler la
   // décision inline en dessous.
   onReady?: () => void
-  // Tap sur la carte (jamais en stage 'building') → ouvre le détail.
+  // Tap sur la carte (uniquement une fois construite) → ouvre le détail.
   onPress?: () => void
 }
 
@@ -39,17 +44,32 @@ const BUILD_LINE_DUR = 380
 // que c'est "présenté", pas "consommé". Hairlines flanquant le nom.
 // Float subtil sur l'avatar pour la rendre vivante. Quand stage =
 // 'decided', on ne rend rien (le parent affiche un MiniRecap à la place).
-function ProfilePresentationCard({ profile, stage, onReady, onPress }: Props) {
-  // Une SharedValue par étape de build : photo, name, maison, occupation, hairline, teaser.
+function ProfilePresentationCard({
+  profile,
+  stage,
+  isFresh = false,
+  onReady,
+  onPress,
+}: Props) {
+  // On anime la séquence de build UNIQUEMENT si la carte est neuve dans
+  // cette session (fresh). Restaurer une conversation depuis le storage
+  // doit afficher la carte déjà construite, sans ré-animer.
+  const animateBuild = stage === 'building' && isFresh
+  const initial = animateBuild ? 0 : 1
+
   const sv = {
-    photo: useSharedValue(stage === 'building' ? 0 : 1),
-    name: useSharedValue(stage === 'building' ? 0 : 1),
-    maison: useSharedValue(stage === 'building' ? 0 : 1),
-    occupation: useSharedValue(stage === 'building' ? 0 : 1),
-    hairline: useSharedValue(stage === 'building' ? 0 : 1),
-    teaser: useSharedValue(stage === 'building' ? 0 : 1),
+    photo: useSharedValue(initial),
+    name: useSharedValue(initial),
+    maison: useSharedValue(initial),
+    occupation: useSharedValue(initial),
+    hairline: useSharedValue(initial),
+    teaser: useSharedValue(initial),
     float: useSharedValue(0),
   }
+
+  // isBuilt : la carte est-elle prête à recevoir un tap ? Vrai dès que
+  // l'animation de build est terminée OU si on n'anime pas.
+  const [isBuilt, setIsBuilt] = useState(!animateBuild)
 
   // Garde anti-restart : la séquence de build ne doit jamais se relancer
   // pour un même mount, même si onReady change de référence (parent
@@ -57,9 +77,10 @@ function ProfilePresentationCard({ profile, stage, onReady, onPress }: Props) {
   // se met à danser de façon erratique.
   const builtRef = useRef(false)
 
-  // Build sequence — uniquement en stage 'building', et une seule fois.
+  // Build sequence — uniquement si on doit animer (fresh + building),
+  // et une seule fois par mount.
   useEffect(() => {
-    if (stage !== 'building') return
+    if (!animateBuild) return
     if (builtRef.current) return
     builtRef.current = true
     let cancelled = false
@@ -73,6 +94,7 @@ function ProfilePresentationCard({ profile, stage, onReady, onPress }: Props) {
         sv.occupation.value = 1
         sv.hairline.value = 1
         sv.teaser.value = 1
+        setIsBuilt(true)
         onReady?.()
         return
       }
@@ -105,6 +127,7 @@ function ProfilePresentationCard({ profile, stage, onReady, onPress }: Props) {
       sched(sv.occupation, BUILD_PHOTO_DUR + 2 * BUILD_LINE_INTERVAL)
       sched(sv.hairline, BUILD_PHOTO_DUR + 3 * BUILD_LINE_INTERVAL)
       sched(sv.teaser, BUILD_PHOTO_DUR + 4 * BUILD_LINE_INTERVAL, () => {
+        setIsBuilt(true)
         onReady?.()
       })
 
@@ -130,7 +153,7 @@ function ProfilePresentationCard({ profile, stage, onReady, onPress }: Props) {
     return () => {
       cancelled = true
     }
-  }, [stage, onReady, sv.photo, sv.name, sv.maison, sv.occupation, sv.hairline, sv.teaser, sv.float])
+  }, [animateBuild, onReady, sv.photo, sv.name, sv.maison, sv.occupation, sv.hairline, sv.teaser, sv.float])
 
   const photoStyle = useAnimatedStyle(() => ({
     opacity: sv.photo.value,
@@ -179,8 +202,12 @@ function ProfilePresentationCard({ profile, stage, onReady, onPress }: Props) {
   return (
     <Pressable
       onPress={onPress}
-      disabled={!onPress || stage !== 'ready'}
+      disabled={!onPress || !isBuilt}
       style={({ pressed }) => [styles.cardWrap, pressed && onPress && styles.cardPressed]}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={
+        onPress ? `Ouvrir le profil de ${profile.firstName}` : undefined
+      }
     >
       <Animated.View style={[styles.photoWrap, photoStyle]}>
         {profile.photoUrl ? (

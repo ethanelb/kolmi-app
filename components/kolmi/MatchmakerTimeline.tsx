@@ -240,6 +240,7 @@ function renderEvent({
         <ProfilePresentationCard
           profile={profile}
           stage={ev.stage}
+          isFresh={isFresh}
           onReady={isFresh ? onComplete : undefined}
           onPress={onProfileTap ? () => onProfileTap(profile.id) : undefined}
         />
