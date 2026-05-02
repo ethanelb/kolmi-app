@@ -1,5 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { ScrollView, View, Text, TouchableOpacity } from 'react-native'
+import React, { useEffect, useMemo, useState, useCallback } from 'react'
+import {
+  ScrollView,
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+} from 'react-native'
 import { Image } from 'expo-image'
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -12,29 +18,26 @@ import {
   kolmiRadius,
 } from '@/constants/kolmiTheme'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
-import ProfilePhotoPlaceholder from '@/components/kolmi/ProfilePhotoPlaceholder'
-import SkeletonBlock from '@/components/kolmi/SkeletonBlock'
 import { mockSelectedProfiles, type SelectedProfile } from '@/data/mockSelectedProfiles'
 import { getPassedProfiles } from '@/lib/kolmi/storage'
 import { kolmiMotion, staggerDelay } from '@/lib/kolmi/motion'
-import { tapMedium } from '@/lib/kolmi/haptics'
 
-type Section = {
-  id: string
-  title: string
-  profiles: SelectedProfile[]
-}
-
-export default function DiscoverScreen() {
+// Tab "Vos envois passés" — catalogue read-only des profils que
+// l'utilisateur a passés depuis le courrier du jour. Pas de browse
+// infini, pas de filtre, pas d'action — c'est un journal.
+//
+// Pivot délibéré : le brand manifesto interdit le swipe / l'exploration
+// active. Cet écran existe juste pour que le user puisse revenir voir
+// qui il a écarté, par curiosité ou regret.
+export default function PastEnvoisScreen() {
   const router = useRouter()
   const [passed, setPassed] = useState<string[]>([])
-  const [analyzed, setAnalyzed] = useState<Set<string>>(new Set())
-  const [isLoading, setIsLoading] = useState<boolean>(true)
+  const [loaded, setLoaded] = useState(false)
 
-  const refresh = React.useCallback(() => {
+  const refresh = useCallback(() => {
     getPassedProfiles().then((next) => {
       setPassed(next)
-      setIsLoading(false)
+      setLoaded(true)
     })
   }, [])
 
@@ -43,377 +46,245 @@ export default function DiscoverScreen() {
   }, [refresh])
 
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       refresh()
-    }, [refresh])
+    }, [refresh]),
   )
 
-  // Sections mutuellement exclusives — un profil n'apparaît jamais
-  // dans plus d'une section.
-  const sections: Section[] = useMemo(() => {
-    const available = mockSelectedProfiles.filter((p) => !passed.includes(p.id))
-    const featured = available.filter((p) => p.isFeatured)
-    const compat = available.filter((p) => !p.isFeatured && p.compatibility >= 85)
-    const placedIds = new Set([...featured, ...compat].map((p) => p.id))
-    const week = available.filter((p) => !placedIds.has(p.id))
-    return [
-      { id: 'featured', title: 'Profils mis en avant', profiles: featured },
-      { id: 'compat', title: 'Compatibles avec votre Maison', profiles: compat },
-      { id: 'week', title: 'Disponibles cette semaine', profiles: week },
-    ]
+  // L'ordre est l'ordre de passage (le dernier passé en premier — le
+  // tableau passed[] est append-only côté storage, on l'inverse pour
+  // afficher du plus récent au plus ancien).
+  const passedProfiles: SelectedProfile[] = useMemo(() => {
+    const map = new Map(mockSelectedProfiles.map((p) => [p.id, p]))
+    return [...passed]
+      .reverse()
+      .map((id) => map.get(id))
+      .filter((p): p is SelectedProfile => p !== undefined)
   }, [passed])
 
-  const allEmpty = sections.every((s) => s.profiles.length === 0)
-
-  const handleAnalyze = useCallback((id: string) => {
-    tapMedium()
-    setAnalyzed((prev) => {
-      const next = new Set(prev)
-      next.add(id)
-      return next
-    })
-  }, [])
-
-  const handleView = useCallback(
+  const handleViewProfile = useCallback(
     (id: string) => router.push(`/matches/${id}`),
     [router],
   )
 
   return (
-    <View style={{ flex: 1, backgroundColor: kolmiColors.bg }}>
+    <View style={styles.root}>
       <GrainOverlay />
-      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+      <SafeAreaView style={styles.safe} edges={['top']}>
         <ScrollView
-          contentContainerStyle={{
-            paddingHorizontal: kolmiPaddingX,
-            paddingTop: kolmiSpace.md,
-            paddingBottom: kolmiSpace.xxxl,
-            gap: kolmiSpace.xl,
-          }}
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <View style={{ gap: kolmiSpace.xs }}>
-            <Text
-              style={{
-                fontFamily: kolmiFonts.serif,
-                fontSize: 36,
-                color: kolmiColors.text,
-                lineHeight: 42,
-                letterSpacing: -0.4,
-              }}
-            >
-              Découvrir
+          <Animated.View
+            entering={FadeIn.duration(kolmiMotion.duration.lg)}
+            style={styles.header}
+          >
+            <Text style={styles.kicker}>Archive</Text>
+            <Text style={styles.title}>Vos envois passés.</Text>
+            <Text style={styles.subtitle}>
+              Les profils que vous avez écartés. En lecture seule — la décision est définitive.
             </Text>
-            <Text
-              style={{
-                fontFamily: kolmiFonts.serifItalic,
-                fontSize: 16,
-                color: kolmiColors.textBody,
-                lineHeight: 22,
-              }}
-            >
-              Des profils mis en avant que votre matchmaker peut analyser pour vous.
-            </Text>
-          </View>
+          </Animated.View>
 
-          {isLoading && (
-            <>
-              <DiscoverSectionSkeleton title="Profils mis en avant" cardCount={2} index={0} />
-              <DiscoverSectionSkeleton title="Compatibles avec votre Maison" cardCount={2} index={1} />
-              <DiscoverSectionSkeleton title="Disponibles cette semaine" cardCount={1} index={2} />
-            </>
+          {loaded && passedProfiles.length === 0 && (
+            <Animated.View
+              entering={FadeIn.delay(200).duration(500)}
+              style={styles.emptyBlock}
+            >
+              <View style={styles.emptyOrnament} />
+              <Text style={styles.emptyTitle}>
+                Vous n'avez encore rien passé.
+              </Text>
+              <Text style={styles.emptyBody}>
+                Quand vous écartez un profil de votre courrier du jour, il s'archive ici.
+              </Text>
+            </Animated.View>
           )}
 
-          {!isLoading && allEmpty && (
-            <View
-              style={{
-                marginTop: kolmiSpace.lg,
-                padding: kolmiSpace.lg,
-                borderRadius: kolmiRadius.lg,
-                borderWidth: 1,
-                borderColor: kolmiColors.outline,
-                gap: kolmiSpace.sm,
-              }}
-            >
-              <Text
-                style={{
-                  fontFamily: kolmiFonts.serif,
-                  fontSize: 22,
-                  color: kolmiColors.text,
-                  lineHeight: 28,
-                }}
-              >
-                Aucun profil mis en avant pour le moment.
-              </Text>
-              <Text
-                style={{
-                  fontFamily: kolmiFonts.serifItalic,
-                  fontSize: 15,
-                  color: kolmiColors.textBody,
-                  lineHeight: 22,
-                }}
-              >
-                Revenez plus tard — votre matchmaker prépare de nouvelles découvertes.
-              </Text>
+          {loaded && passedProfiles.length > 0 && (
+            <View style={styles.list}>
+              {passedProfiles.map((profile, i) => (
+                <Animated.View
+                  key={profile.id}
+                  entering={FadeInDown.delay(staggerDelay(i, 80))
+                    .duration(kolmiMotion.duration.md)
+                    .easing(kolmiMotion.easing.soft)}
+                >
+                  <PastRow profile={profile} onPress={handleViewProfile} />
+                </Animated.View>
+              ))}
             </View>
           )}
-
-          {!isLoading && !allEmpty && sections.map((section, sIdx) => (
-            <Animated.View
-              key={section.id}
-              entering={FadeInDown.delay(staggerDelay(sIdx, 120))
-                .duration(kolmiMotion.duration.lg)
-                .easing(kolmiMotion.easing.soft)}
-              style={{ gap: kolmiSpace.sm }}
-            >
-              <Text
-                numberOfLines={2}
-                style={{
-                  fontFamily: kolmiFonts.uiSemiBold,
-                  fontSize: 11,
-                  color: kolmiColors.textSecondary,
-                  textTransform: 'uppercase',
-                  letterSpacing: 1.6,
-                  flexShrink: 1,
-                }}
-              >
-                {section.title}
-              </Text>
-              {section.profiles.length === 0 ? (
-                <Text
-                  style={{
-                    fontFamily: kolmiFonts.serifItalic,
-                    fontSize: 14,
-                    color: kolmiColors.textMuted,
-                    paddingVertical: kolmiSpace.sm,
-                  }}
-                >
-                  Aucun profil dans cette section pour l&apos;instant.
-                </Text>
-              ) : (
-                <View style={{ gap: kolmiSpace.md }}>
-                  {section.profiles.map((profile, i) => (
-                    <Animated.View
-                      key={`${section.id}-${profile.id}`}
-                      entering={FadeInDown.delay(staggerDelay(i, 60))
-                        .duration(kolmiMotion.duration.md)
-                        .easing(kolmiMotion.easing.soft)}
-                    >
-                      <DiscoverCard
-                        profile={profile}
-                        analyzed={analyzed.has(profile.id)}
-                        onAnalyze={handleAnalyze}
-                        onView={handleView}
-                      />
-                    </Animated.View>
-                  ))}
-                </View>
-              )}
-            </Animated.View>
-          ))}
         </ScrollView>
       </SafeAreaView>
     </View>
   )
 }
 
-const DiscoverCard = React.memo(function DiscoverCard({
+const PastRow = React.memo(function PastRow({
   profile,
-  analyzed,
-  onAnalyze,
-  onView,
+  onPress,
 }: {
   profile: SelectedProfile
-  analyzed: boolean
-  onAnalyze: (id: string) => void
-  onView: (id: string) => void
+  onPress: (id: string) => void
 }) {
-  const analyzePress = useCallback(() => onAnalyze(profile.id), [onAnalyze, profile.id])
-  const viewPress = useCallback(() => onView(profile.id), [onView, profile.id])
+  const handlePress = useCallback(() => onPress(profile.id), [onPress, profile.id])
+  const subtitle =
+    profile.occupation && profile.city
+      ? `${profile.occupation} · ${profile.city}`
+      : profile.occupation ?? profile.city
+
   return (
-    <View
-      style={{
-        borderRadius: kolmiRadius.lg,
-        borderWidth: 1,
-        borderColor: 'rgba(22,19,15,0.12)',
-        backgroundColor: '#FAF8F5',
-        overflow: 'hidden',
-      }}
+    <TouchableOpacity
+      onPress={handlePress}
+      activeOpacity={0.85}
+      style={rowStyles.row}
     >
-      {profile.photoUrl ? (
-        <Image
-          source={{ uri: profile.photoUrl }}
-          style={{ width: '100%', height: 220, backgroundColor: kolmiColors.surfaceSoft }}
-        />
-      ) : (
-        <ProfilePhotoPlaceholder
-          height={220}
-          initial={profile.firstName}
-          profileId={profile.id}
-        />
-      )}
-      <View style={{ padding: kolmiSpace.md, gap: kolmiSpace.xs }}>
-        <Text
-          style={{
-            fontFamily: kolmiFonts.serif,
-            fontSize: 22,
-            color: kolmiColors.text,
-            letterSpacing: -0.3,
-          }}
-        >
+      <View style={rowStyles.thumbWrap}>
+        {profile.photoUrl ? (
+          <Image
+            source={{ uri: profile.photoUrl }}
+            style={rowStyles.thumb}
+            contentFit="cover"
+            transition={120}
+          />
+        ) : (
+          <View style={rowStyles.thumbPlaceholder}>
+            <Text style={rowStyles.thumbLetter}>
+              {profile.firstName.charAt(0).toUpperCase()}
+            </Text>
+          </View>
+        )}
+      </View>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={rowStyles.name}>
           {profile.firstName}, {profile.age}
         </Text>
-        <Text
-          style={{
-            fontFamily: kolmiFonts.uiMedium,
-            fontSize: 12,
-            color: kolmiColors.textSecondary,
-            textTransform: 'uppercase',
-            letterSpacing: 1.2,
-          }}
-        >
-          {profile.dnaLabel} · {profile.city}
-        </Text>
-        <Text
-          style={{
-            fontFamily: kolmiFonts.serifItalic,
-            fontSize: 14,
-            color: kolmiColors.textBody,
-            lineHeight: 20,
-            marginTop: 4,
-          }}
-        >
-          « {profile.reason} »
-        </Text>
-
-        {analyzed && (
-          <Text
-            style={{
-              fontFamily: kolmiFonts.serifItalic,
-              fontSize: 13,
-              color: kolmiColors.accent,
-              lineHeight: 19,
-              marginTop: 6,
-            }}
-          >
-            Votre matchmaker pense que ce profil mérite une rencontre.
-          </Text>
-        )}
-
-        <View style={{ flexDirection: 'row', gap: kolmiSpace.xs, marginTop: kolmiSpace.sm }}>
-          <TouchableOpacity
-            onPress={analyzed ? viewPress : analyzePress}
-            activeOpacity={0.85}
-            style={{
-              flex: 1,
-              height: 44,
-              borderRadius: kolmiRadius.pill,
-              backgroundColor: kolmiColors.text,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Text
-              style={{
-                fontFamily: kolmiFonts.uiSemiBold,
-                fontSize: 14,
-                color: '#FAF8F5',
-              }}
-            >
-              {analyzed ? 'Voir le profil' : 'Demander l\'analyse'}
-            </Text>
-          </TouchableOpacity>
-          {!analyzed && (
-            <TouchableOpacity
-              onPress={viewPress}
-              activeOpacity={0.7}
-              style={{
-                flex: 1,
-                height: 44,
-                borderRadius: kolmiRadius.pill,
-                borderWidth: 1,
-                borderColor: kolmiColors.outline,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Text
-                style={{
-                  fontFamily: kolmiFonts.uiMedium,
-                  fontSize: 14,
-                  color: kolmiColors.text,
-                }}
-              >
-                Voir le profil
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
+        <Text style={rowStyles.maison}>{profile.dnaLabel}</Text>
+        {subtitle ? (
+          <Text style={rowStyles.subtitle}>{subtitle}</Text>
+        ) : null}
       </View>
-    </View>
+    </TouchableOpacity>
   )
 })
 
-function DiscoverCardSkeleton() {
-  return (
-    <View
-      style={{
-        borderRadius: kolmiRadius.lg,
-        borderWidth: 1,
-        borderColor: 'rgba(22,19,15,0.12)',
-        backgroundColor: '#FAF8F5',
-        overflow: 'hidden',
-      }}
-    >
-      <SkeletonBlock width="100%" height={220} radius={0} />
-      <View style={{ padding: kolmiSpace.md, gap: kolmiSpace.xs }}>
-        <SkeletonBlock width="55%" height={24} radius={6} />
-        <SkeletonBlock width="75%" height={12} radius={4} />
-        <SkeletonBlock width="100%" height={14} radius={4} />
-        <SkeletonBlock width="85%" height={14} radius={4} />
-        <View style={{ flexDirection: 'row', gap: kolmiSpace.xs, marginTop: kolmiSpace.sm }}>
-          <SkeletonBlock width="48%" height={44} radius={kolmiRadius.pill} />
-          <SkeletonBlock width="48%" height={44} radius={kolmiRadius.pill} />
-        </View>
-      </View>
-    </View>
-  )
-}
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: kolmiColors.bg },
+  safe: { flex: 1 },
+  scrollContent: {
+    paddingHorizontal: kolmiPaddingX,
+    paddingTop: kolmiSpace.md,
+    paddingBottom: kolmiSpace.xxxl,
+  },
+  header: {
+    gap: 4,
+    marginBottom: kolmiSpace.xl,
+  },
+  kicker: {
+    fontFamily: kolmiFonts.uiMedium,
+    fontSize: 10,
+    color: kolmiColors.textMuted,
+    letterSpacing: 2.6,
+    textTransform: 'uppercase',
+  },
+  title: {
+    fontFamily: kolmiFonts.serif,
+    fontSize: 34,
+    color: kolmiColors.text,
+    lineHeight: 40,
+    letterSpacing: -0.4,
+  },
+  subtitle: {
+    fontFamily: kolmiFonts.serifItalic,
+    fontSize: 16,
+    color: kolmiColors.textBody,
+    lineHeight: 22,
+    marginTop: 4,
+  },
 
-function DiscoverSectionSkeleton({
-  title,
-  cardCount,
-  index = 0,
-}: {
-  title: string
-  cardCount: number
-  index?: number
-}) {
-  return (
-    <Animated.View
-      entering={FadeIn.delay(staggerDelay(index, 80))
-        .duration(kolmiMotion.duration.md)
-        .easing(kolmiMotion.easing.soft)}
-      style={{ gap: kolmiSpace.sm }}
-    >
-      <Text
-        numberOfLines={2}
-        style={{
-          fontFamily: kolmiFonts.uiSemiBold,
-          fontSize: 11,
-          color: kolmiColors.textSecondary,
-          textTransform: 'uppercase',
-          letterSpacing: 1.6,
-          flexShrink: 1,
-        }}
-      >
-        {title}
-      </Text>
-      <View style={{ gap: kolmiSpace.md }}>
-        {Array.from({ length: cardCount }).map((_, i) => (
-          <DiscoverCardSkeleton key={`${title}-skel-${i}`} />
-        ))}
-      </View>
-    </Animated.View>
-  )
-}
+  list: {
+    gap: kolmiSpace.sm,
+  },
+
+  // Empty state
+  emptyBlock: {
+    marginTop: kolmiSpace.xxl,
+    alignItems: 'center',
+    gap: kolmiSpace.sm,
+    paddingHorizontal: kolmiSpace.lg,
+  },
+  emptyOrnament: {
+    width: 48,
+    height: 0.8,
+    backgroundColor: kolmiColors.accent,
+    marginBottom: kolmiSpace.sm,
+  },
+  emptyTitle: {
+    fontFamily: kolmiFonts.serif,
+    fontSize: 22,
+    color: kolmiColors.text,
+    lineHeight: 28,
+    textAlign: 'center',
+  },
+  emptyBody: {
+    fontFamily: kolmiFonts.serifItalic,
+    fontSize: 15,
+    color: kolmiColors.textBody,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+})
+
+const rowStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    gap: kolmiSpace.md,
+    padding: kolmiSpace.md,
+    backgroundColor: '#FAF8F5',
+    borderRadius: kolmiRadius.lg,
+    borderWidth: 1,
+    borderColor: kolmiColors.outline,
+    alignItems: 'center',
+  },
+  thumbWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: kolmiColors.surfaceSoft,
+  },
+  thumb: {
+    width: '100%',
+    height: '100%',
+  },
+  thumbPlaceholder: {
+    flex: 1,
+    backgroundColor: '#EFE7DA',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thumbLetter: {
+    fontFamily: kolmiFonts.serif,
+    fontSize: 26,
+    color: kolmiColors.accent,
+  },
+  name: {
+    fontFamily: kolmiFonts.serif,
+    fontSize: 19,
+    color: kolmiColors.text,
+    letterSpacing: -0.2,
+  },
+  maison: {
+    fontFamily: kolmiFonts.serifItalic,
+    fontSize: 13,
+    color: kolmiColors.accent,
+    letterSpacing: 0.1,
+  },
+  subtitle: {
+    fontFamily: kolmiFonts.ui,
+    fontSize: 13,
+    color: kolmiColors.textBody,
+    marginTop: 2,
+  },
+})

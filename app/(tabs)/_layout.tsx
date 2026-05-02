@@ -23,19 +23,14 @@ function SelectionIcon({ color }: IconProps) {
   )
 }
 
-function DiscoverIcon({ color }: IconProps) {
+// Icône Archives — pile de livres / dossiers, en cohérence avec
+// le pivot du tab vers "Vos envois passés".
+function ArchivesIcon({ color }: IconProps) {
   return (
     <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
-      <Circle cx={11} cy={11} r={7} stroke={color} strokeWidth={1.6} />
-      <Line
-        x1={16}
-        y1={16}
-        x2={21}
-        y2={21}
-        stroke={color}
-        strokeWidth={1.6}
-        strokeLinecap="round"
-      />
+      <Rect x={4} y={6} width={16} height={3.2} rx={0.8} stroke={color} strokeWidth={1.6} fill="none" />
+      <Rect x={4} y={11.2} width={16} height={3.2} rx={0.8} stroke={color} strokeWidth={1.6} fill="none" />
+      <Rect x={4} y={16.4} width={16} height={3.2} rx={0.8} stroke={color} strokeWidth={1.6} fill="none" />
     </Svg>
   )
 }
@@ -112,9 +107,9 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="discover"
         options={{
-          title: 'Découvrir',
+          title: 'Archives',
           tabBarIcon: ({ color, focused }) => (
-            <DiscoverIcon color={color} focused={focused} />
+            <ArchivesIcon color={color} focused={focused} />
           ),
         }}
       />
