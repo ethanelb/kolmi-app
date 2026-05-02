@@ -112,29 +112,52 @@ export default function MatchDetailScreen() {
             entering={FadeInUp.delay(staggerDelay(0, 120))
               .duration(kolmiMotion.duration.lg)
               .easing(kolmiMotion.easing.soft)}
-            style={{ gap: kolmiSpace.xs }}
+            style={{ gap: 6, alignItems: 'flex-start' }}
           >
+            {/* Hairline bordeaux fin — sépare la photo du contenu sans
+                ajouter de lourdeur. Petite respiration éditoriale. */}
+            <View
+              style={{
+                width: 32,
+                height: 0.8,
+                backgroundColor: kolmiColors.accent,
+                marginTop: 4,
+                marginBottom: 6,
+              }}
+            />
             <Text
               style={{
                 fontFamily: kolmiFonts.serif,
                 fontSize: 36,
                 color: kolmiColors.text,
                 letterSpacing: -0.4,
+                lineHeight: 40,
               }}
             >
               {profile.firstName}, {profile.age}
             </Text>
             <Text
               style={{
-                fontFamily: kolmiFonts.uiMedium,
-                fontSize: 13,
-                color: kolmiColors.textSecondary,
-                textTransform: 'uppercase',
-                letterSpacing: 1.2,
+                fontFamily: kolmiFonts.serifItalic,
+                fontSize: 15,
+                color: kolmiColors.accent,
+                letterSpacing: 0.1,
               }}
             >
-              {profile.dnaLabel} · {profile.city}
+              {profile.dnaLabel}
             </Text>
+            {(profile.occupation || profile.city) && (
+              <Text
+                style={{
+                  fontFamily: kolmiFonts.ui,
+                  fontSize: 13,
+                  color: kolmiColors.textBody,
+                  letterSpacing: 0.2,
+                }}
+              >
+                {[profile.occupation, profile.city].filter(Boolean).join(' · ')}
+              </Text>
+            )}
           </Animated.View>
 
           <Animated.View
@@ -159,7 +182,7 @@ export default function MatchDetailScreen() {
                 letterSpacing: 1.2,
               }}
             >
-              Compatibilité {profile.compatibility}% · Pourquoi ce profil
+              Pourquoi ce profil
             </Text>
             <Text
               style={{
