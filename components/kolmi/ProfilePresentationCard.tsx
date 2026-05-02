@@ -282,7 +282,11 @@ const styles = StyleSheet.create({
   },
   photoWrap: {
     width: '100%',
-    aspectRatio: 4 / 5,
+    // 1:1 plutôt que 4/5 — la carte tient sur ~60 % du viewport au lieu
+    // de l'écraser. Le crop carré reste flatteur pour un portrait
+    // (visage + épaules) et donne une composition de plate éditoriale
+    // (cf. AnOther, Apartamento) plus équilibrée avec le bloc texte.
+    aspectRatio: 1,
     backgroundColor: kolmiColors.surfaceSoft,
   },
   photo: {
@@ -304,7 +308,7 @@ const styles = StyleSheet.create({
   body: {
     paddingHorizontal: kolmiSpace.lg,
     paddingTop: kolmiSpace.md,
-    paddingBottom: kolmiSpace.lg,
+    paddingBottom: kolmiSpace.md,
     alignItems: 'center',
   },
   nameRow: {
