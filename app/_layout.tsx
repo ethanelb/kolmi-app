@@ -78,7 +78,7 @@ export default function RootLayout() {
   // prête, on diffère.
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener(() => {
-      const target = '/(tabs)/dates'
+      const target = '/(tabs)/encounters'
       if (!fontsLoaded) {
         pendingNavigationRef.current = target
         return

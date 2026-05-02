@@ -117,7 +117,7 @@ export default function MeetingConfirmScreen() {
           onPress: async () => {
             try {
               await updateMeeting(meeting.id, { status: 'declined' })
-              router.replace('/(tabs)/dates')
+              router.replace('/(tabs)/encounters')
             } catch (err) {
               console.warn('[kolmi] cancel meeting failed', err)
               Alert.alert('Erreur', "L'annulation n'a pas pu aboutir.")

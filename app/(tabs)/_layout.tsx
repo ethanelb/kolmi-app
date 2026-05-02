@@ -171,14 +171,10 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* Anciens tabs cachés — Expo Router scanne app/(tabs)/* et
-          créerait une 4ᵉ entrée si on n'explicite pas href: null pour
-          chaque écran qu'on souhaite désactiver dans la nav. On les
-          désactive d'abord ; le cleanup (suppression des fichiers)
-          vient dans l'itération suivante. */}
+      {/* index existe toujours pour rediriger les routes legacy
+          (`/(tabs)`, deeplinks anciens) vers conversation — on le
+          masque de la barre, mais le fichier reste. */}
       <Tabs.Screen name="index" options={{ href: null }} />
-      <Tabs.Screen name="discover" options={{ href: null }} />
-      <Tabs.Screen name="dates" options={{ href: null }} />
     </Tabs>
   )
 }

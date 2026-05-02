@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { Image } from 'expo-image'
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'
@@ -107,30 +108,8 @@ export default function ProfileTabScreen() {
           }}
           showsVerticalScrollIndicator={false}
         >
-          <View style={{ gap: kolmiSpace.xs }}>
-            <Text
-              style={{
-                fontFamily: kolmiFonts.uiSemiBold,
-                fontSize: 11,
-                letterSpacing: 1.6,
-                color: kolmiColors.textSecondary,
-                textTransform: 'uppercase',
-              }}
-            >
-              {profile.firstName ? 'Bonjour' : 'Profil'}
-            </Text>
-            <Text
-              style={{
-                fontFamily: kolmiFonts.serif,
-                fontSize: 36,
-                color: kolmiColors.text,
-                lineHeight: 42,
-                letterSpacing: -0.4,
-              }}
-            >
-              {profile.firstName ?? 'Mon profil'}
-            </Text>
-          </View>
+          <SignatureCard profile={profile} dna={dna} />
+
 
           {isLoading ? (
             <>
@@ -331,8 +310,143 @@ export default function ProfileTabScreen() {
               tone="danger"
             />
           </Section>
+
+          <ProfileFooter />
         </ScrollView>
       </SafeAreaView>
+    </View>
+  )
+}
+
+// Carte signature en haut du profil — la "page de garde" éditoriale.
+// Avatar circulaire à gauche, prénom serif et ligne italique avec âge ·
+// Maison à droite. Petit kicker "MEMBRE · KOLMI" en supra.
+function SignatureCard({
+  profile,
+  dna,
+}: {
+  profile: KolmiProfile
+  dna: KolmiDnaResult | null
+}) {
+  const firstPhoto = profile.photoUrls?.[0]
+  const age = computeAge(profile.birthDate)
+  const initials = (profile.firstName ?? '').trim().slice(0, 1).toUpperCase()
+  const subtitleParts: string[] = []
+  if (age != null) subtitleParts.push(`${age} ans`)
+  if (dna?.categoryLabel) subtitleParts.push(dna.categoryLabel)
+  const subtitle = subtitleParts.join(' · ')
+
+  return (
+    <Animated.View
+      entering={FadeInUp.duration(kolmiMotion.duration.lg).easing(
+        kolmiMotion.easing.soft,
+      )}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: kolmiSpace.md,
+      }}
+    >
+      <View
+        style={{
+          width: 72,
+          height: 72,
+          borderRadius: 36,
+          borderWidth: 1,
+          borderColor: 'rgba(22,19,15,0.15)',
+          backgroundColor: '#FAF8F5',
+          overflow: 'hidden',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {firstPhoto ? (
+          <Image
+            source={{ uri: firstPhoto }}
+            style={{ width: '100%', height: '100%' }}
+            contentFit="cover"
+          />
+        ) : (
+          <Text
+            style={{
+              fontFamily: kolmiFonts.serif,
+              fontSize: 28,
+              color: kolmiColors.textMuted,
+            }}
+          >
+            {initials || '·'}
+          </Text>
+        )}
+      </View>
+
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text
+          style={{
+            fontFamily: kolmiFonts.uiSemiBold,
+            fontSize: 10,
+            letterSpacing: 1.8,
+            color: kolmiColors.textSecondary,
+            textTransform: 'uppercase',
+          }}
+        >
+          Membre · KOLMI
+        </Text>
+        <Text
+          style={{
+            fontFamily: kolmiFonts.serif,
+            fontSize: 32,
+            color: kolmiColors.text,
+            lineHeight: 36,
+            letterSpacing: -0.4,
+          }}
+        >
+          {profile.firstName ?? 'Mon profil'}
+        </Text>
+        {subtitle ? (
+          <Text
+            style={{
+              fontFamily: kolmiFonts.serifItalic,
+              fontSize: 14,
+              color: kolmiColors.textBody,
+              lineHeight: 20,
+            }}
+          >
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
+    </Animated.View>
+  )
+}
+
+// Pied de page éditorial — clôt la fiche personnelle comme un colophon.
+function ProfileFooter() {
+  return (
+    <View
+      style={{
+        alignItems: 'center',
+        paddingTop: kolmiSpace.lg,
+        gap: 6,
+      }}
+    >
+      <View
+        style={{
+          width: 32,
+          height: 1,
+          backgroundColor: 'rgba(22,19,15,0.18)',
+        }}
+      />
+      <Text
+        style={{
+          fontFamily: kolmiFonts.uiSemiBold,
+          fontSize: 10,
+          letterSpacing: 2,
+          color: kolmiColors.textSecondary,
+          textTransform: 'uppercase',
+        }}
+      >
+        KOLMI · Bêta privée · MMXXVI
+      </Text>
     </View>
   )
 }

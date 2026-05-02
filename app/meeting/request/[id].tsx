@@ -50,7 +50,7 @@ function nextRouteForActive(meeting: Meeting): string {
     case 'accepted_waiting_slots':
       return `/meeting/schedule/${meeting.id}`
     default:
-      return '/(tabs)/dates'
+      return '/(tabs)/encounters'
   }
 }
 
@@ -141,7 +141,7 @@ export default function MeetingRequestScreen() {
       // Mock backend : programme la décision de l'autre (5-30 s).
       simulateOtherDecision(meeting.id)
 
-      router.replace('/(tabs)/dates')
+      router.replace('/(tabs)/encounters')
     } catch (err) {
       console.warn('[kolmi] meeting request failed', err)
       if (!tokenDebited) {

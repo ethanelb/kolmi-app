@@ -77,10 +77,10 @@ export default function MeetingFeedbackScreen() {
           Alert.alert(
             'Réponse enregistrée.',
             "Si l'autre dit oui aussi, vous serez prévenu·e dès qu'il/elle aura répondu.",
-            [{ text: 'OK', onPress: () => router.replace('/(tabs)/dates') }],
+            [{ text: 'OK', onPress: () => router.replace('/(tabs)/encounters') }],
           )
         } else {
-          router.replace('/(tabs)/dates')
+          router.replace('/(tabs)/encounters')
         }
       } catch (err) {
         console.warn('[kolmi] feedback failed', err)

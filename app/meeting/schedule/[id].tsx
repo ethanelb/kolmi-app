@@ -114,7 +114,7 @@ export default function MeetingScheduleScreen() {
           return
         }
         if (found.status !== 'accepted_waiting_slots') {
-          router.replace('/(tabs)/dates')
+          router.replace('/(tabs)/encounters')
           return
         }
       }
@@ -178,7 +178,7 @@ export default function MeetingScheduleScreen() {
               router.replace(
                 current.status === 'confirmed'
                   ? `/meeting/confirm/${current.id}`
-                  : '/(tabs)/dates',
+                  : '/(tabs)/encounters',
               ),
           },
         ],
@@ -205,7 +205,7 @@ export default function MeetingScheduleScreen() {
       }
       // Mock backend : l'autre choisit un slot après 30 s à 3 min.
       simulateOtherSlotChoice(meeting.id)
-      router.replace('/(tabs)/dates')
+      router.replace('/(tabs)/encounters')
     } catch (err) {
       console.warn('[kolmi] schedule submit failed', err)
       Alert.alert(
