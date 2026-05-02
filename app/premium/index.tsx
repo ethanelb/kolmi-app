@@ -52,14 +52,14 @@ const PACKS: Pack[] = [
     id: 'token-unite',
     tokens: 1,
     priceLabel: '15 €',
-    tagline: 'Une demande, à la pièce.',
+    tagline: 'Une histoire commence ici.',
   },
   {
     id: 'pack-trois',
     tokens: 3,
     priceLabel: '39 €',
     unitPriceLabel: '13 € / token',
-    tagline: 'Trois rencontres choisies.',
+    tagline: 'Trois conversations qui auraient pu ne jamais avoir lieu.',
     highlight: true,
   },
   {
@@ -67,7 +67,7 @@ const PACKS: Pack[] = [
     tokens: 10,
     priceLabel: '100 €',
     unitPriceLabel: '10 € / token',
-    tagline: 'Pour qui prend le temps.',
+    tagline: 'Pour ceux qui ne veulent rien laisser au hasard.',
   },
 ]
 
@@ -208,13 +208,13 @@ export default function PremiumScreen() {
           showsVerticalScrollIndicator={false}
         >
           <Animated.Text entering={FadeIn.duration(420)} style={styles.title}>
-            Choisissez votre rythme.
+            Une rencontre peut tout changer.
           </Animated.Text>
           <Animated.Text
             entering={FadeInDown.delay(180).duration(500)}
             style={styles.subtitle}
           >
-            La rareté est volontaire. Deux façons d'avancer.
+            La rareté est volontaire — choisissez moins, mais mieux.
           </Animated.Text>
 
           {balance !== null && (

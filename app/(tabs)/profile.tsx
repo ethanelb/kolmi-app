@@ -21,6 +21,8 @@ import {
   getKolmiProfile,
   getTokens,
   resetKolmiState,
+  isSubscribed,
+  getHasPurchased,
   type KolmiPreferences,
   type KolmiProfile,
 } from '@/lib/kolmi/storage'
@@ -33,19 +35,32 @@ export default function ProfileTabScreen() {
   const [dna, setDna] = useState<KolmiDnaResult | null>(null)
   const [prefs, setPrefs] = useState<KolmiPreferences | null>(null)
   const [tokens, setTokensState] = useState<number>(0)
+  const [subscribed, setSubscribed] = useState<boolean>(false)
+  const [purchased, setPurchased] = useState<boolean>(false)
   const [isLoading, setIsLoading] = useState<boolean>(true)
 
   const refresh = React.useCallback(async () => {
-    const [nextProfile, nextDna, nextPrefs, nextTokens] = await Promise.all([
+    const [
+      nextProfile,
+      nextDna,
+      nextPrefs,
+      nextTokens,
+      nextSub,
+      nextPurchased,
+    ] = await Promise.all([
       getKolmiProfile(),
       getKolmiDnaResult(),
       getKolmiPreferences(),
       getTokens(),
+      isSubscribed(),
+      getHasPurchased(),
     ])
     setProfile(nextProfile)
     setDna(nextDna)
     setPrefs(nextPrefs)
     setTokensState(nextTokens)
+    setSubscribed(nextSub)
+    setPurchased(nextPurchased)
     setIsLoading(false)
   }, [])
 
@@ -213,8 +228,19 @@ export default function ProfileTabScreen() {
             />
           </Section>
 
+          {/* Promo abonnement — visible uniquement aux utilisateurs
+              gratuits (ni abonnés ni clients packs). Carte calme,
+              pitch émotionnel, CTA discret. Pas de badge "promo" :
+              c'est une invitation, pas une pub. */}
+          {!subscribed && !purchased && (
+            <SubscriptionPromoCard
+              onPress={() => router.push('/premium')}
+              index={2}
+            />
+          )}
+
           {/* Profil — édition */}
-          <Section title="Mon profil" index={2}>
+          <Section title="Mon profil" index={3}>
             <Text
               style={{
                 fontFamily: kolmiFonts.ui,
@@ -262,7 +288,7 @@ export default function ProfileTabScreen() {
           </Section>
 
           {/* Préférences */}
-          <Section title="Mes préférences" index={3}>
+          <Section title="Mes préférences" index={4}>
             {prefs ? (
               <Text
                 style={{
@@ -291,7 +317,7 @@ export default function ProfileTabScreen() {
           )}
 
           {/* Compte */}
-          <Section title="Compte" index={4}>
+          <Section title="Compte" index={5}>
             <ActionRow
               label="Confidentialité (bientôt)"
               onPress={() => {}}
@@ -420,6 +446,106 @@ function SignatureCard({
 }
 
 // Pied de page éditorial — clôt la fiche personnelle comme un colophon.
+// Carte promo abonnement — n'apparaît qu'aux utilisateurs gratuits.
+// Pas de badge "promo", pas de bordeaux saturé : on est dans le ton
+// éditorial. Cadre bordeaux fin, italique serif, dot d'accent, CTA
+// outlined comme la "porte" de ready.tsx pour rester cohérent.
+function SubscriptionPromoCard({
+  onPress,
+  index = 0,
+}: {
+  onPress: () => void
+  index?: number
+}) {
+  return (
+    <Animated.View
+      entering={FadeInUp.delay(staggerDelay(index, 80))
+        .duration(kolmiMotion.duration.lg)
+        .easing(kolmiMotion.easing.soft)}
+      style={{
+        padding: kolmiSpace.lg,
+        borderRadius: kolmiRadius.lg,
+        borderWidth: 1.2,
+        borderColor: kolmiColors.accent,
+        backgroundColor: '#FAF8F5',
+        gap: kolmiSpace.sm,
+      }}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View
+          style={{
+            width: 24,
+            height: 0.8,
+            backgroundColor: kolmiColors.accent,
+          }}
+        />
+        <Text
+          style={{
+            fontFamily: kolmiFonts.uiSemiBold,
+            fontSize: 10,
+            color: kolmiColors.accent,
+            letterSpacing: 1.8,
+            textTransform: 'uppercase',
+          }}
+        >
+          KOLMI · Abonnement
+        </Text>
+      </View>
+
+      <Text
+        style={{
+          fontFamily: kolmiFonts.serifItalic,
+          fontSize: 22,
+          color: kolmiColors.text,
+          lineHeight: 28,
+          letterSpacing: -0.2,
+          marginTop: 2,
+        }}
+      >
+        Et si vous arrêtiez de compter ?
+      </Text>
+
+      <Text
+        style={{
+          fontFamily: kolmiFonts.ui,
+          fontSize: 13,
+          lineHeight: 20,
+          color: kolmiColors.textBody,
+          marginTop: 2,
+        }}
+      >
+        5 tokens chaque mois, profils illimités, le matchmaker en alerte
+        permanente. 60 € / mois.
+      </Text>
+
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.85}
+        style={{
+          marginTop: kolmiSpace.sm,
+          alignSelf: 'flex-start',
+          paddingHorizontal: kolmiSpace.md,
+          paddingVertical: 10,
+          borderRadius: kolmiRadius.pill,
+          borderWidth: 1.2,
+          borderColor: kolmiColors.accent,
+        }}
+      >
+        <Text
+          style={{
+            fontFamily: kolmiFonts.uiSemiBold,
+            fontSize: 13,
+            color: kolmiColors.accent,
+            letterSpacing: 0.4,
+          }}
+        >
+          Découvrir l'abonnement →
+        </Text>
+      </TouchableOpacity>
+    </Animated.View>
+  )
+}
+
 function ProfileFooter() {
   return (
     <View

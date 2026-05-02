@@ -53,30 +53,35 @@ type NudgeContent = {
   ctaLabel: string
 }
 
+// Trois pitches émotionnels — on vend la rencontre, pas le token. Cycle
+// 0 → 1 → 2 → 0 ; chaque palier de 3 décisions tire le suivant.
+//   V1 (full) — la promesse universelle : une rencontre change tout.
+//   V2 (à la carte) — l'unité du choix : un token = une histoire.
+//   V3 (abonnement) — la liberté : arrêter de compter.
 const NUDGE_COPY: Record<NudgeVariant, NudgeContent> = {
   full: {
-    kicker: 'Vous avancez',
-    title: 'Encore trois portraits.',
-    body: 'Continuez sans compter, ou choisissez votre rythme — packs à la pièce ou abonnement mensuel.',
+    kicker: 'Tout commence ici',
+    title: 'Une rencontre peut changer une vie.',
+    body: 'Le matchmaker continue à lire pour vous. La prochaine personne qui compte est peut-être déjà dans le courrier — à vous de tendre la main.',
     tiles: [
-      { kicker: 'À la carte', price: 'dès 15 €' },
-      { kicker: 'Abonnement', price: '60 € / mois' },
+      { kicker: 'À la pièce', price: 'dès 15 €' },
+      { kicker: 'Sans compter', price: '60 € / mois' },
     ],
-    ctaLabel: 'Voir les formules',
+    ctaLabel: 'Choisir mon rythme',
   },
   'a-la-carte': {
-    kicker: 'À la pièce',
-    title: 'Trois rencontres choisies.',
-    body: 'Un pack de 3 tokens à 39 €, c\'est trois demandes posées sans précipitation. Le rythme reste à vous.',
+    kicker: 'Un token, une histoire',
+    title: 'Tout commence avec un seul token.',
+    body: 'Trois demandes posées sans précipitation, c\'est trois conversations qui n\'auraient peut-être jamais eu lieu. Choisissez moins, mais mieux.',
     tiles: [{ kicker: 'Pack 3 tokens', price: '39 €' }],
     ctaLabel: 'Voir les packs',
   },
   abonnement: {
-    kicker: 'Sans compter',
-    title: 'L\'abonnement, pour les patients.',
-    body: '5 tokens chaque mois, profils par jour illimités, priorité éditoriale du matchmaker.',
+    kicker: 'Arrêter de compter',
+    title: 'Et si vous laissiez le hasard de côté ?',
+    body: '5 tokens chaque mois, profils illimités, le matchmaker en alerte permanente. Pour ceux qui ne veulent plus laisser passer la bonne personne par flemme du compteur.',
     tiles: [{ kicker: 'Abonnement KOLMI', price: '60 € / mois' }],
-    ctaLabel: 'En savoir plus',
+    ctaLabel: 'Découvrir l\'abonnement',
   },
 }
 
@@ -368,10 +373,10 @@ export default function ConversationTabScreen() {
           <Pressable style={styles.modalBackdrop} onPress={closeTokenAlert}>
             <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
               <View style={styles.modalRule} />
-              <Text style={styles.modalKicker}>Plus de tokens</Text>
-              <Text style={styles.modalTitle}>La rareté est volontaire.</Text>
+              <Text style={styles.modalKicker}>Pas pressé</Text>
+              <Text style={styles.modalTitle}>Cette personne mérite un token.</Text>
               <Text style={styles.modalBody}>
-                Un token offert par envoi de demande. Recharger se fait depuis l'écran Premium.
+                Vous êtes à zéro pour l'instant. Choisissez votre rythme — un seul token suffit pour ouvrir la prochaine conversation.
               </Text>
               <View style={styles.modalActions}>
                 <TouchableOpacity
@@ -386,7 +391,7 @@ export default function ConversationTabScreen() {
                   activeOpacity={0.85}
                   style={styles.modalConfirm}
                 >
-                  <Text style={styles.modalConfirmText}>Voir les recharges</Text>
+                  <Text style={styles.modalConfirmText}>Choisir mon rythme</Text>
                 </TouchableOpacity>
               </View>
             </Pressable>
