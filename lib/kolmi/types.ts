@@ -50,6 +50,8 @@ export type Meeting = {
   feedbackByOther?: boolean
 }
 
+export type VenueType = 'café' | 'restaurant' | 'bar à vin' | 'salon de thé'
+
 export type Venue = {
   id: string
   name: string
@@ -57,4 +59,8 @@ export type Venue = {
   city: string
   ambiance: string
   matchmakerNote: string
+  // Champ ajouté pour le sélecteur de créneaux : permet de filtrer les
+  // lieux par quartier dans la sélection.
+  neighborhood?: string
+  type?: VenueType
 }
