@@ -8,7 +8,18 @@ import {
   StyleSheet,
   Pressable,
 } from 'react-native'
-import Animated, { FadeIn, FadeInDown, FadeInUp } from 'react-native-reanimated'
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeInUp,
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+  withDelay,
+  Easing,
+} from 'react-native-reanimated'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'
 import {
@@ -180,13 +191,12 @@ export default function SelectionScreen() {
                     onPress={handleViewProfile}
                   />
                   <View style={styles.ctaRow}>
-                    <TouchableOpacity
+                    <DemandCta
                       onPress={() => handleRequest(profile.id)}
-                      activeOpacity={0.85}
-                      style={styles.ctaPrimary}
-                    >
-                      <Text style={styles.ctaPrimaryText}>Demander un rendez-vous</Text>
-                    </TouchableOpacity>
+                      // Pulse uniquement sur la 1ʳᵉ carte — invitation
+                      // discrète à l'action principale du jour.
+                      pulse={i === 0}
+                    />
                     <TouchableOpacity
                       onPress={() => handlePass(profile.id)}
                       activeOpacity={0.7}
@@ -239,6 +249,53 @@ export default function SelectionScreen() {
         </Modal>
       </SafeAreaView>
     </View>
+  )
+}
+
+// CTA principal d'une carte. Quand `pulse` est true, on anime un scale
+// infini ±2 % (cycle 2,2 s) pour inviter discrètement au tap, et on ne
+// l'applique qu'à la 1ʳᵉ carte du courrier — éviter la cacophonie.
+function DemandCta({
+  onPress,
+  pulse = false,
+}: {
+  onPress: () => void
+  pulse?: boolean
+}) {
+  const scale = useSharedValue(1)
+
+  useEffect(() => {
+    if (!pulse) {
+      scale.value = withTiming(1, { duration: 200 })
+      return
+    }
+    scale.value = withDelay(
+      900,
+      withRepeat(
+        withSequence(
+          withTiming(1.02, { duration: 1100, easing: Easing.inOut(Easing.quad) }),
+          withTiming(1, { duration: 1100, easing: Easing.inOut(Easing.quad) }),
+        ),
+        -1,
+        true,
+      ),
+    )
+  }, [pulse, scale])
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }))
+
+  return (
+    <Animated.View style={[styles.ctaPrimaryWrap, animatedStyle]}>
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.85}
+        style={styles.ctaPrimary}
+      >
+        <Text style={styles.ctaPrimaryText}>Demander un rendez-vous</Text>
+      </TouchableOpacity>
+    </Animated.View>
   )
 }
 
@@ -330,8 +387,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: kolmiSpace.xs,
   },
-  ctaPrimary: {
+  ctaPrimaryWrap: {
     flex: 1,
+  },
+  ctaPrimary: {
     height: 48,
     borderRadius: kolmiRadius.pill,
     backgroundColor: kolmiColors.accent,
