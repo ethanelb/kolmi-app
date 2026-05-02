@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import Animated, {
+  interpolateColor,
   useSharedValue,
   useAnimatedStyle,
   withTiming,
@@ -51,14 +52,17 @@ export default function ReadyScreen() {
   const tr1 = useSharedValue(0)
   const tr2 = useSharedValue(0)
 
-  // Final reveal : wordmark + CTA + verif note.
+  // Final reveal : wordmark + CTA.
   const wordmarkOpacity = useSharedValue(0)
   const wordmarkScale = useSharedValue(0.92)
   const wordmarkFloat = useSharedValue(0)
   const ctaOpacity = useSharedValue(0)
   const ctaTranslate = useSharedValue(24)
   const ctaPulse = useSharedValue(1)
-  const verifOpacity = useSharedValue(0)
+  // Encre du tampon — 0 = outline seul, 1 = pleine bordeaux.
+  const ctaInk = useSharedValue(0)
+  // Dérive subtile de la flèche à droite (invitation au tap).
+  const arrowDrift = useSharedValue(0)
 
   useEffect(() => {
     success()
@@ -123,11 +127,6 @@ export default function ReadyScreen() {
       ),
     )
 
-    verifOpacity.value = withDelay(
-      finalStart + 600,
-      withTiming(1, { duration: 500 }),
-    )
-
     ctaOpacity.value = withDelay(
       finalStart + 800,
       withTiming(1, { duration: 500 }),
@@ -143,6 +142,19 @@ export default function ReadyScreen() {
         withSequence(
           withTiming(1.02, { duration: 1100, easing: Easing.inOut(Easing.quad) }),
           withTiming(1, { duration: 1100, easing: Easing.inOut(Easing.quad) }),
+        ),
+        -1,
+        true,
+      ),
+    )
+    // Dérive infinie de la flèche : 0 → 4px → 0. Plus rapide que le pulse,
+    // pour donner l'impression que la porte appelle.
+    arrowDrift.value = withDelay(
+      finalStart + 1500,
+      withRepeat(
+        withSequence(
+          withTiming(4, { duration: 900, easing: Easing.inOut(Easing.quad) }),
+          withTiming(0, { duration: 900, easing: Easing.inOut(Easing.quad) }),
         ),
         -1,
         true,
@@ -214,9 +226,31 @@ export default function ReadyScreen() {
     ],
   }))
 
-  const verifStyle = useAnimatedStyle(() => ({
-    opacity: verifOpacity.value,
+  // Tampon bordeaux : transition continue de outline → fill au press.
+  const ctaInkStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(
+      ctaInk.value,
+      [0, 1],
+      ['rgba(139,26,26,0)', kolmiColors.accent],
+    ),
   }))
+  const ctaTextStyle = useAnimatedStyle(() => ({
+    color: interpolateColor(
+      ctaInk.value,
+      [0, 1],
+      [kolmiColors.accent, kolmiColors.bg],
+    ),
+  }))
+  const arrowStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: arrowDrift.value }],
+  }))
+
+  const handlePressIn = () => {
+    ctaInk.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.cubic) })
+  }
+  const handlePressOut = () => {
+    ctaInk.value = withTiming(0, { duration: 320, easing: Easing.out(Easing.cubic) })
+  }
 
   return (
     <View style={styles.root}>
@@ -237,12 +271,26 @@ export default function ReadyScreen() {
         </View>
 
         <View style={styles.footer}>
-          <Animated.Text style={[styles.verif, verifStyle]}>
-            Ton profil part en vérification — on te prévient dès que c'est validé.
-          </Animated.Text>
           <Animated.View style={ctaStyle}>
-            <TouchableOpacity style={styles.cta} onPress={onContinue} activeOpacity={0.85}>
-              <Text style={styles.ctaText}>Découvrir Kolmi</Text>
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={onContinue}
+              onPressIn={handlePressIn}
+              onPressOut={handlePressOut}
+              accessibilityRole="button"
+              accessibilityLabel="Pousser la porte — entrer dans Kolmi"
+            >
+              {/* Tampon : cadre bordeaux fin, pas de fill au repos. Le
+                  fill bordeaux apparaît au press en tween continu, comme
+                  une pression de cachet. */}
+              <Animated.View style={[styles.cta, ctaInkStyle]}>
+                <Animated.Text style={[styles.ctaText, ctaTextStyle]}>
+                  Pousser la porte
+                </Animated.Text>
+                <Animated.Text style={[styles.ctaArrow, ctaTextStyle, arrowStyle]}>
+                  →
+                </Animated.Text>
+              </Animated.View>
             </TouchableOpacity>
           </Animated.View>
         </View>
@@ -322,31 +370,29 @@ const styles = StyleSheet.create({
     paddingTop: kolmiSpace.sm,
     gap: kolmiSpace.md,
   },
-  verif: {
-    fontFamily: kolmiFonts.ui,
-    fontSize: 12,
-    lineHeight: 18,
-    color: kolmiColors.textMuted,
-    textAlign: 'center',
-    paddingHorizontal: kolmiSpace.md,
-    letterSpacing: 0.2,
-  },
+  // Tampon éditorial : cadre bordeaux fin, fond transparent au repos.
+  // Le press déclenche un fill bordeaux progressif (cf ctaInkStyle).
   cta: {
-    height: 56,
+    height: 60,
     borderRadius: kolmiRadius.pill,
-    backgroundColor: kolmiColors.accent,
+    borderWidth: 1.2,
+    borderColor: kolmiColors.accent,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#5A0A0A',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 14,
-    elevation: 4,
+    gap: 12,
+    paddingHorizontal: kolmiSpace.lg,
   },
   ctaText: {
-    fontFamily: kolmiFonts.uiSemiBold,
-    fontSize: 16,
-    color: kolmiColors.white,
+    fontFamily: kolmiFonts.serifItalic,
+    fontSize: 18,
     letterSpacing: 0.2,
+    // color est piloté par ctaTextStyle (interpolation reanimated)
+  },
+  ctaArrow: {
+    fontFamily: kolmiFonts.serif,
+    fontSize: 18,
+    letterSpacing: 0,
+    marginLeft: 2,
   },
 })
