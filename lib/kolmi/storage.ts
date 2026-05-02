@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { dnaCategories } from '@/data/kolmiDna'
 import { kolmiQuestions } from '@/data/kolmiQuestions'
 import type { KolmiAnswer, KolmiDnaResult, Meeting } from './types'
+import { clearAllConversations } from './conversationEngine'
 
 const PROGRESS_KEY = 'kolmi.progress'
 const ANSWERS_KEY = 'kolmi.answers'
@@ -346,15 +347,21 @@ export async function resetKolmiState() {
   _dnaCache = undefined
   _prefsCache = undefined
   _tokensCache = -1
-  await AsyncStorage.multiRemove([
-    PROGRESS_KEY,
-    ANSWERS_KEY,
-    DNA_RESULT_KEY,
-    PREFERENCES_KEY,
-    PROFILE_KEY,
-    TOKENS_KEY,
-    PASSED_PROFILES_KEY,
-    MEETINGS_KEY,
-    PUSH_TOKEN_KEY,
+  await Promise.all([
+    AsyncStorage.multiRemove([
+      PROGRESS_KEY,
+      ANSWERS_KEY,
+      DNA_RESULT_KEY,
+      PREFERENCES_KEY,
+      PROFILE_KEY,
+      TOKENS_KEY,
+      PASSED_PROFILES_KEY,
+      MEETINGS_KEY,
+      PUSH_TOKEN_KEY,
+    ]),
+    // Les conversations sont indexées par dayKey, donc absentes des
+    // clés statiques ci-dessus. Sans ce wipe, un re-onboarding le
+    // même jour ressuscite une timeline éditoriale d'avant le reset.
+    clearAllConversations(),
   ])
 }
