@@ -99,7 +99,19 @@ export default function ConversationTabScreen() {
       // depuis Premium ou meeting/request) — mais on ne re-load PAS la
       // conversation pour ne pas perdre le state d'animation.
       getTokens().then(setTokens).catch(() => {})
-    }, []),
+
+      // Day rollover : si l'app est restée ouverte et qu'on a passé
+      // minuit, le state encore en mémoire reste sur dayKey d'hier. On
+      // détecte ici et on reload pour que la nouvelle journée prenne
+      // la place — sans ça le user ne voit jamais le nouveau courrier.
+      setState((prev) => {
+        if (prev && prev.dayKey !== todayKey()) {
+          load()
+          return null
+        }
+        return prev
+      })
+    }, [load]),
   )
 
   const handleDecision = useCallback(
