@@ -184,7 +184,6 @@ export const mockSelectedProfiles: SelectedProfile[] = [
       'N\'aime pas les démonstrations',
     ],
     availabilityHint: 'Dimanches après-midi',
-    isFeatured: true,
   },
   {
     id: 'camille-27-paris',
@@ -204,6 +203,12 @@ export const mockSelectedProfiles: SelectedProfile[] = [
       'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=900',
       'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=900',
     ],
+    bio: 'Pige pour Le Monde Diplomatique. Court chaque matin le long du canal Saint-Martin. Lit Hannah Arendt en boucle, déteste les conversations creuses.',
+    prompts: [
+      { question: 'Une chose qui me met en colère', answer: 'Les dîners où personne ne dit ce qu\'il pense vraiment.' },
+      { question: 'Mon dimanche idéal', answer: 'Marcher seule, écrire trois heures, dîner tard avec quelqu\'un.' },
+      { question: 'Je sais que ça va marcher quand', answer: 'On peut se taire ensemble sans malaise.' },
+    ],
     intentions: 'Engagement à deux, libertés préservées.',
     interests: ['Philosophie', 'Course à pied', 'Écriture', 'Politique'],
     compatibilityPoints: [
@@ -216,7 +221,6 @@ export const mockSelectedProfiles: SelectedProfile[] = [
       'Demande de la cohérence dans les actes',
     ],
     availabilityHint: 'Mardi soir, dimanche matin',
-    isFeatured: true,
   },
   {
     id: 'leo-28-paris',
@@ -236,6 +240,12 @@ export const mockSelectedProfiles: SelectedProfile[] = [
       'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=900',
       'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=900',
     ],
+    bio: 'Écrit pour le théâtre et la télé. Vit dans le 11e, déjeune à la même brasserie depuis sept ans. Croit dur comme fer que le monde a besoin de plus de fiction, pas moins.',
+    prompts: [
+      { question: 'Mon plus grand luxe', answer: 'Une matinée à écrire sans rendez-vous derrière.' },
+      { question: 'Une rencontre m\'a changé', answer: 'Un comédien octogénaire, en tournée à Avignon.' },
+      { question: 'Je suis attirant·e quand', answer: 'Je raconte une histoire à laquelle je crois vraiment.' },
+    ],
     intentions: 'Construire un univers commun, à deux mains.',
     interests: ['Théâtre', 'Cinéma', 'Dessin', 'Vinyles rares'],
     compatibilityPoints: [
@@ -248,7 +258,6 @@ export const mockSelectedProfiles: SelectedProfile[] = [
       'Besoin d\'espace pour créer',
     ],
     availabilityHint: 'Vendredi soir, samedi',
-    isFeatured: true,
   },
   // ─── Profils ajoutés pour diversité (Maisons manquantes) ──────────
   {
