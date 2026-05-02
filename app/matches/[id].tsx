@@ -1,16 +1,26 @@
-import React, { useMemo, useRef, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Dimensions,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
   ScrollView,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native'
 import { Image } from 'expo-image'
-import Animated, { FadeIn, FadeInUp, ZoomIn } from 'react-native-reanimated'
+import Animated, {
+  FadeIn,
+  FadeInUp,
+  ZoomIn,
+  interpolate,
+  runOnJS,
+  useAnimatedReaction,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  Extrapolation,
+  type SharedValue,
+} from 'react-native-reanimated'
 import Svg, { Path } from 'react-native-svg'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -63,6 +73,8 @@ export default function MatchDetailScreen() {
             onPress={() => router.back()}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             style={{ paddingVertical: 4 }}
+            accessibilityLabel="Retour"
+            accessibilityRole="button"
           >
             <Svg width={10} height={18} viewBox="0 0 10 18" fill="none">
               <Path
@@ -360,6 +372,10 @@ export default function MatchDetailScreen() {
 // Galerie de photos horizontale, paginée. Si une seule photo (ou
 // `photoUrl` seul), on retombe sur un affichage statique sans dots.
 // L'image est edge-to-edge (négatif sur paddingHorizontal du parent).
+//
+// Les dots sont des hairlines blancs qui s'étirent / s'opacifient en
+// continu via un sharedValue lié à scrollX — pas de snap visuel, on
+// suit la lecture en temps réel.
 function PhotoGallery({
   photos,
   firstName,
@@ -370,11 +386,26 @@ function PhotoGallery({
   profileId: string
 }) {
   const screenWidth = useMemo(() => Dimensions.get('window').width, [])
-  // L'image colle aux bords écran — on rattrape le paddingX du parent.
   const photoWidth = screenWidth
   const photoHeight = 480
   const [index, setIndex] = useState(0)
-  const scrollRef = useRef<ScrollView | null>(null)
+  const scrollX = useSharedValue(0)
+
+  const onScroll = useAnimatedScrollHandler((e) => {
+    scrollX.value = e.contentOffset.x
+  })
+
+  // Pousse l'index sur le state JS uniquement quand l'arrondi change —
+  // évite un setState par frame.
+  useAnimatedReaction(
+    () => Math.round(scrollX.value / photoWidth),
+    (current, previous) => {
+      if (current !== previous && current >= 0) {
+        runOnJS(setIndex)(current)
+      }
+    },
+    [photoWidth],
+  )
 
   if (photos.length === 0) {
     return (
@@ -394,12 +425,6 @@ function PhotoGallery({
     )
   }
 
-  const onMomentumEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const x = e.nativeEvent.contentOffset.x
-    const next = Math.round(x / photoWidth)
-    if (next !== index) setIndex(next)
-  }
-
   return (
     <Animated.View
       entering={FadeIn.delay(40)
@@ -407,12 +432,12 @@ function PhotoGallery({
         .easing(kolmiMotion.easing.expoOut)}
       style={{ marginHorizontal: -kolmiPaddingX }}
     >
-      <ScrollView
-        ref={scrollRef}
+      <Animated.ScrollView
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={onMomentumEnd}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         scrollEnabled={photos.length > 1}
       >
         {photos.map((uri, i) => (
@@ -425,32 +450,33 @@ function PhotoGallery({
               backgroundColor: kolmiColors.surfaceSoft,
             }}
             contentFit="cover"
+            transition={220}
+            placeholder={{ blurhash: 'L6PZfSi_.AyE_3t7t7Rj~qof9Fof' }}
+            placeholderContentFit="cover"
           />
         ))}
-      </ScrollView>
+      </Animated.ScrollView>
 
       {photos.length > 1 && (
         <View
           style={{
             position: 'absolute',
-            bottom: 14,
+            bottom: 16,
             left: 0,
             right: 0,
             flexDirection: 'row',
             justifyContent: 'center',
+            alignItems: 'center',
             gap: 6,
           }}
+          pointerEvents="none"
         >
           {photos.map((_, i) => (
-            <View
+            <GalleryDot
               key={`dot-${i}`}
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: 3,
-                backgroundColor:
-                  i === index ? kolmiColors.white : 'rgba(255,255,255,0.45)',
-              }}
+              indexValue={i}
+              scrollX={scrollX}
+              photoWidth={photoWidth}
             />
           ))}
         </View>
@@ -462,18 +488,19 @@ function PhotoGallery({
             position: 'absolute',
             top: 14,
             right: 14,
-            paddingHorizontal: 8,
+            paddingHorizontal: 9,
             paddingVertical: 3,
             borderRadius: 999,
             backgroundColor: 'rgba(20,15,12,0.55)',
           }}
+          pointerEvents="none"
         >
           <Text
             style={{
               fontFamily: kolmiFonts.uiSemiBold,
               fontSize: 11,
               color: kolmiColors.white,
-              letterSpacing: 0.4,
+              letterSpacing: 0.6,
             }}
           >
             {index + 1} / {photos.length}
@@ -481,6 +508,49 @@ function PhotoGallery({
         </View>
       )}
     </Animated.View>
+  )
+}
+
+// Hairline animée — quand on est sur cet index, largeur 22px + opacité
+// 1 ; sinon 6px + opacité 0.45. Interpolation continue, jamais de snap.
+function GalleryDot({
+  indexValue,
+  scrollX,
+  photoWidth,
+}: {
+  indexValue: number
+  scrollX: SharedValue<number>
+  photoWidth: number
+}) {
+  const style = useAnimatedStyle(() => {
+    const progress = scrollX.value / photoWidth
+    const distance = Math.abs(progress - indexValue)
+    const width = interpolate(
+      distance,
+      [0, 1],
+      [22, 6],
+      Extrapolation.CLAMP,
+    )
+    const opacity = interpolate(
+      distance,
+      [0, 1],
+      [1, 0.45],
+      Extrapolation.CLAMP,
+    )
+    return { width, opacity }
+  })
+
+  return (
+    <Animated.View
+      style={[
+        {
+          height: 2,
+          borderRadius: 1,
+          backgroundColor: '#FFFFFF',
+        },
+        style,
+      ]}
+    />
   )
 }
 

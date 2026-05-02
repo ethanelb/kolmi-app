@@ -195,11 +195,19 @@ export default function ConversationTabScreen() {
           <TouchableOpacity
             onPress={() => router.push('/premium')}
             activeOpacity={0.7}
-            style={styles.tokenIndicator}
+            style={[styles.tokenIndicator, tokens === 0 && styles.tokenIndicatorEmpty]}
             hitSlop={8}
+            accessibilityLabel={
+              tokens > 0
+                ? `${tokens} tokens disponibles, voir les recharges`
+                : 'Aucun token, voir les recharges'
+            }
+            accessibilityRole="button"
           >
-            <View style={styles.tokenDot} />
-            <Text style={styles.tokenCount}>{tokens}</Text>
+            <View style={[styles.tokenDot, tokens === 0 && styles.tokenDotEmpty]} />
+            <Text style={[styles.tokenCount, tokens === 0 && styles.tokenCountEmpty]}>
+              {tokens}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -277,17 +285,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
+  tokenIndicatorEmpty: {
+    opacity: 0.55,
+  },
   tokenDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
     backgroundColor: kolmiColors.accent,
   },
+  tokenDotEmpty: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: kolmiColors.textMuted,
+  },
   tokenCount: {
     fontFamily: kolmiFonts.uiSemiBold,
     fontSize: 14,
     color: kolmiColors.text,
     letterSpacing: 0.4,
+  },
+  tokenCountEmpty: {
+    color: kolmiColors.textMuted,
   },
 
   // Modal "rareté"
