@@ -48,5 +48,7 @@ export default function Index() {
   if (!progress.hasCompletedMatchmaker || !hasDna) {
     return <Redirect href="/matchmaker" />
   }
-  return <Redirect href="/(tabs)" />
+  // Le tab central est l'entrée par défaut — la conversation du jour
+  // avec le matchmaker est la pièce maîtresse de l'app.
+  return <Redirect href="/(tabs)/conversation" />
 }

@@ -1,31 +1,21 @@
-import React from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { Tabs } from 'expo-router'
-import { Platform, View } from 'react-native'
+import { Platform, View, Text } from 'react-native'
 import Svg, { Circle, Line, Path, Rect } from 'react-native-svg'
 import { kolmiColors, kolmiFonts } from '@/constants/kolmiTheme'
+import {
+  loadConversation,
+  todayKey,
+  isDayCompleted,
+} from '@/lib/kolmi/conversationEngine'
 
 const ACTIVE = kolmiColors.accent
 const INACTIVE = 'rgba(22, 19, 15, 0.45)'
 
 type IconProps = { color: string; focused: boolean }
 
-function SelectionIcon({ color }: IconProps) {
-  return (
-    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M12 2L13.7 8.4L20.5 9.1L15.3 13.4L17 19.7L12 16.4L7 19.7L8.7 13.4L3.5 9.1L10.3 8.4L12 2Z"
-        stroke={color}
-        strokeWidth={1.5}
-        strokeLinejoin="round"
-        fill="none"
-      />
-    </Svg>
-  )
-}
-
-// Icône Archives — pile de livres / dossiers, en cohérence avec
-// le pivot du tab vers "Vos envois passés".
-function ArchivesIcon({ color }: IconProps) {
+// Icône archives — 3 fines lignes empilées (registre, dossiers).
+function EncountersIcon({ color }: IconProps) {
   return (
     <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
       <Rect x={4} y={6} width={16} height={3.2} rx={0.8} stroke={color} strokeWidth={1.6} fill="none" />
@@ -35,25 +25,46 @@ function ArchivesIcon({ color }: IconProps) {
   )
 }
 
-function DatesIcon({ color }: IconProps) {
+// Icône conversation — bulle italique avec un point bordeaux.
+// Plus expressive (légèrement plus grosse) parce que c'est le tab
+// central, l'entrée par défaut. Si `hot` (non-lus du jour), on dessine
+// un petit point d'accent en haut-droite.
+function ConversationIcon({ color, hot }: IconProps & { hot?: boolean }) {
   return (
-    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
-      <Rect
-        x={3.5}
-        y={5}
-        width={17}
-        height={15}
-        rx={2}
-        stroke={color}
-        strokeWidth={1.6}
-      />
-      <Line x1={3.5} y1={10} x2={20.5} y2={10} stroke={color} strokeWidth={1.6} />
-      <Line x1={8} y1={3} x2={8} y2={7} stroke={color} strokeWidth={1.6} strokeLinecap="round" />
-      <Line x1={16} y1={3} x2={16} y2={7} stroke={color} strokeWidth={1.6} strokeLinecap="round" />
-    </Svg>
+    <View style={{ width: 28, height: 28, alignItems: 'center', justifyContent: 'center' }}>
+      <Svg width={26} height={26} viewBox="0 0 26 26" fill="none">
+        {/* Petit fronton stylisé — clin d'œil au MaisonGlyph */}
+        <Path
+          d="M 13 4 L 4 11 L 22 11 Z"
+          stroke={color}
+          strokeWidth={1.6}
+          strokeLinejoin="round"
+          fill="none"
+        />
+        <Line x1={3} y1={11} x2={23} y2={11} stroke={color} strokeWidth={1.4} />
+        <Line x1={3} y1={14} x2={23} y2={14} stroke={color} strokeWidth={0.8} />
+        <Circle cx={13} cy={9.4} r={0.9} fill={color} />
+        {/* Sol */}
+        <Line x1={1} y1={22} x2={25} y2={22} stroke={color} strokeWidth={0.8} />
+      </Svg>
+      {hot && (
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            width: 6,
+            height: 6,
+            borderRadius: 3,
+            backgroundColor: kolmiColors.accent,
+          }}
+        />
+      )}
+    </View>
   )
 }
 
+// Icône profil — silhouette douce (cercle + arc épaules).
 function ProfileIcon({ color }: IconProps) {
   return (
     <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
@@ -70,6 +81,25 @@ function ProfileIcon({ color }: IconProps) {
 }
 
 export default function TabsLayout() {
+  // Le tab conversation devient "hot" (point bordeaux) quand la
+  // conversation du jour n'est pas encore terminée. On relit la
+  // persistance au focus pour rester juste sans live store.
+  const [conversationHot, setConversationHot] = useState(false)
+
+  const refreshHot = useCallback(async () => {
+    try {
+      const conv = await loadConversation(todayKey())
+      // Hot si conversation existe ET pas terminée OU pas encore vue.
+      setConversationHot(conv ? !isDayCompleted(conv) : true)
+    } catch {
+      setConversationHot(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    refreshHot()
+  }, [refreshHot])
+
   return (
     <Tabs
       screenOptions={{
@@ -96,41 +126,59 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen
-        name="index"
+        name="encounters"
         options={{
-          title: 'Sélection',
+          title: 'Rencontres',
           tabBarIcon: ({ color, focused }) => (
-            <SelectionIcon color={color} focused={focused} />
+            <EncountersIcon color={color} focused={focused} />
           ),
         }}
       />
       <Tabs.Screen
-        name="discover"
-        options={{
-          title: 'Archives',
-          tabBarIcon: ({ color, focused }) => (
-            <ArchivesIcon color={color} focused={focused} />
-          ),
+        name="conversation"
+        listeners={{
+          focus: () => refreshHot(),
         }}
-      />
-      <Tabs.Screen
-        name="dates"
         options={{
-          title: 'Rendez-vous',
+          // Label minimal — c'est le tab central, le cœur, il n'a pas
+          // besoin de se nommer. Un point bordeaux suffit.
+          title: '·',
+          tabBarLabel: ({ focused }) => (
+            <Text
+              style={{
+                fontFamily: kolmiFonts.serif,
+                fontSize: 14,
+                color: focused ? ACTIVE : INACTIVE,
+                marginTop: 2,
+                letterSpacing: 0.4,
+              }}
+            >
+              ·
+            </Text>
+          ),
           tabBarIcon: ({ color, focused }) => (
-            <DatesIcon color={color} focused={focused} />
+            <ConversationIcon color={color} focused={focused} hot={conversationHot} />
           ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profil',
+          title: 'Vous',
           tabBarIcon: ({ color, focused }) => (
             <ProfileIcon color={color} focused={focused} />
           ),
         }}
       />
+
+      {/* Anciens tabs cachés — Expo Router scanne app/(tabs)/* et
+          créerait une 4ᵉ entrée si on n'explicite pas href: null pour
+          chaque écran qu'on souhaite désactiver dans la nav. On les
+          désactive d'abord ; le cleanup (suppression des fichiers)
+          vient dans l'itération suivante. */}
+      <Tabs.Screen name="index" options={{ href: null }} />
+      <Tabs.Screen name="discover" options={{ href: null }} />
+      <Tabs.Screen name="dates" options={{ href: null }} />
     </Tabs>
   )
 }
