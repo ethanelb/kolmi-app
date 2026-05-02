@@ -13,6 +13,7 @@ const TOKENS_KEY = 'kolmi.tokens'
 const PASSED_PROFILES_KEY = 'kolmi.passed_profiles'
 const MEETINGS_KEY = 'kolmi.meetings'
 const PUSH_TOKEN_KEY = 'kolmi.push_token'
+const SUBSCRIPTION_KEY = 'kolmi.subscription'
 
 export type KolmiProgress = {
   hasCompletedBaseOnboarding: boolean
@@ -249,6 +250,47 @@ export async function spendToken(): Promise<boolean> {
   return true
 }
 
+// ─── Subscription (formule abonnement) ──────────────────────────────
+//
+// Bêta : on stocke localement l'état d'abonnement. En prod, ça sera
+// servi par le backend (Stripe / RevenueCat). Le champ `lastTokenGrant`
+// permet d'éviter de re-créditer plusieurs fois les 5 tokens du mois si
+// l'utilisateur revient sur l'écran sans re-souscrire.
+
+export type KolmiSubscription = {
+  isActive: boolean
+  startedAt?: string // ISO date — début abonnement
+  lastTokenGrant?: string // ISO date — dernier crédit mensuel
+}
+
+const defaultSubscription: KolmiSubscription = { isActive: false }
+
+let _subscriptionCache: KolmiSubscription | undefined
+
+export async function getSubscription(): Promise<KolmiSubscription> {
+  if (_subscriptionCache !== undefined) return _subscriptionCache
+  _subscriptionCache = await getJson<KolmiSubscription>(
+    SUBSCRIPTION_KEY,
+    defaultSubscription,
+  )
+  return _subscriptionCache
+}
+
+export async function setSubscription(
+  patch: Partial<KolmiSubscription>,
+): Promise<KolmiSubscription> {
+  const current = await getSubscription()
+  const next: KolmiSubscription = { ...current, ...patch }
+  _subscriptionCache = next
+  await setJson(SUBSCRIPTION_KEY, next)
+  return next
+}
+
+export async function isSubscribed(): Promise<boolean> {
+  const sub = await getSubscription()
+  return sub.isActive
+}
+
 // ─── Passed profiles (locally hidden) ────────────────────────────────
 
 export async function getPassedProfiles(): Promise<string[]> {
@@ -347,6 +389,7 @@ export async function resetKolmiState() {
   _dnaCache = undefined
   _prefsCache = undefined
   _tokensCache = -1
+  _subscriptionCache = undefined
   await Promise.all([
     AsyncStorage.multiRemove([
       PROGRESS_KEY,
@@ -358,6 +401,7 @@ export async function resetKolmiState() {
       PASSED_PROFILES_KEY,
       MEETINGS_KEY,
       PUSH_TOKEN_KEY,
+      SUBSCRIPTION_KEY,
     ]),
     // Les conversations sont indexées par dayKey, donc absentes des
     // clés statiques ci-dessus. Sans ce wipe, un re-onboarding le

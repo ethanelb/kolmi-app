@@ -18,6 +18,7 @@ import {
   passProfile,
   getTokens,
   getMeetings,
+  isSubscribed,
 } from '@/lib/kolmi/storage'
 import { safePersist } from '@/lib/kolmi/safePersist'
 import {
@@ -54,11 +55,12 @@ export default function ConversationTabScreen() {
   const load = useCallback(async () => {
     await cleanupOldConversations()
     const day = todayKey()
-    const [stored, dna, passed, balance] = await Promise.all([
+    const [stored, dna, passed, balance, subscribed] = await Promise.all([
       loadConversation(day),
       getKolmiDnaResult(),
       getPassedProfiles(),
       getTokens(),
+      isSubscribed(),
     ])
     dnaRef.current = dna
     setTokens(balance)
@@ -76,13 +78,14 @@ export default function ConversationTabScreen() {
       return
     }
 
-    // Première ouverture du jour — on génère la sélection (cap 10,
-    // exclut les profils déjà passés) puis on construit la conversation.
-    // Le cap reste large pour laisser respirer le mock ; en prod on
-    // taillerait selon les préférences et la disponibilité réelle.
-    const candidates = mockSelectedProfiles
-      .filter((p) => !passed.includes(p.id))
-      .slice(0, 10)
+    // Première ouverture du jour — on génère la sélection (exclut les
+    // profils déjà passés). Cap : 10 par défaut, ILLIMITÉ pour les
+    // abonnés (la formule "Abonnement" a comme promesse explicite "des
+    // profils par jour illimités").
+    const filtered = mockSelectedProfiles.filter(
+      (p) => !passed.includes(p.id),
+    )
+    const candidates = subscribed ? filtered : filtered.slice(0, 10)
     profilesRef.current = candidates
 
     const fresh = buildDayConversation(candidates, dna)
