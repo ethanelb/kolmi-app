@@ -1,5 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
-import { ScrollView, View, Text, StyleSheet } from 'react-native'
+import {
+  ScrollView,
+  View,
+  Text,
+  StyleSheet,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from 'react-native'
 import Animated, { FadeIn } from 'react-native-reanimated'
 import {
   kolmiColors,
@@ -66,9 +73,25 @@ function MatchmakerTimeline({
     setFrontier((prev) => Math.min(prev, total))
   }, [total])
 
-  // Auto-scroll en bas quand frontier avance ou quand events changent.
+  // Auto-scroll en bas quand frontier avance ou quand events changent —
+  // mais SEULEMENT si l'utilisateur est déjà près du bas. Sinon il est
+  // probablement en train de relire un événement précédent et on ne
+  // veut pas le téléporter en bas à chaque révélation.
   const scrollRef = useRef<ScrollView | null>(null)
+  const nearBottomRef = useRef(true)
+  const onScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent
+      const distanceFromBottom =
+        contentSize.height - (contentOffset.y + layoutMeasurement.height)
+      // Tolérance 120 px — on considère "près du bas" assez large pour
+      // ne pas pénaliser un léger rebound.
+      nearBottomRef.current = distanceFromBottom < 120
+    },
+    [],
+  )
   useEffect(() => {
+    if (!nearBottomRef.current) return
     const t = setTimeout(() => {
       scrollRef.current?.scrollToEnd({ animated: true })
     }, 80)
@@ -117,6 +140,8 @@ function MatchmakerTimeline({
       ref={scrollRef}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
+      onScroll={onScroll}
+      scrollEventThrottle={120}
     >
       {events.map((ev, idx) => {
         const isVisible = idx < frontier

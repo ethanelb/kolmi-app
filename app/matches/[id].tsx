@@ -39,7 +39,11 @@ export default function MatchDetailScreen() {
     return (
       <ProfileUnavailable
         onRetry={() => setReloadTick(t => t + 1)}
-        onBackToList={() => router.replace('/(tabs)')}
+        onBackToList={() =>
+          router.canGoBack()
+            ? router.back()
+            : router.replace('/(tabs)/encounters')
+        }
       />
     )
   }
@@ -243,7 +247,7 @@ export default function MatchDetailScreen() {
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                 {profile.interests.map((interest, i) => (
                   <Animated.View
-                    entering={ZoomIn.delay(staggerDelay(i, 700)).duration(kolmiMotion.duration.sm).easing(kolmiMotion.easing.soft)}
+                    entering={ZoomIn.delay(staggerDelay(i, 200)).duration(kolmiMotion.duration.sm).easing(kolmiMotion.easing.soft)}
                     key={`${profile.id}-int-${i}`}
                     style={{
                       paddingHorizontal: 12,
@@ -319,7 +323,12 @@ export default function MatchDetailScreen() {
               onPress={async () => {
                 const ok = await safePersist(() => passProfile(profile.id))
                 if (!ok) return
-                router.replace('/(tabs)')
+                // router.back() → l'utilisateur retourne à la conversation
+                // ou à l'archive d'où il vient, plutôt que d'être renvoyé
+                // au tab par défaut. Si pas d'historique (deeplink), on
+                // retombe sur encounters comme refuge éditorial.
+                if (router.canGoBack()) router.back()
+                else router.replace('/(tabs)/encounters')
               }}
               activeOpacity={0.7}
               style={{

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useRef } from 'react'
 import { View, Text, Pressable, StyleSheet, AccessibilityInfo } from 'react-native'
 import { Image } from 'expo-image'
 import Animated, {
@@ -51,9 +51,17 @@ function ProfilePresentationCard({ profile, stage, onReady, onPress }: Props) {
     float: useSharedValue(0),
   }
 
-  // Build sequence — uniquement en stage 'building'.
+  // Garde anti-restart : la séquence de build ne doit jamais se relancer
+  // pour un même mount, même si onReady change de référence (parent
+  // recrée son useCallback). Sinon le float infini empile et la card
+  // se met à danser de façon erratique.
+  const builtRef = useRef(false)
+
+  // Build sequence — uniquement en stage 'building', et une seule fois.
   useEffect(() => {
     if (stage !== 'building') return
+    if (builtRef.current) return
+    builtRef.current = true
     let cancelled = false
     AccessibilityInfo.isReduceMotionEnabled().then((reduce) => {
       if (cancelled) return
