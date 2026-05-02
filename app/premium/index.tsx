@@ -1,6 +1,13 @@
-import React, { useEffect, useState } from 'react'
-import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native'
-import Animated, { FadeIn, FadeInDown, FadeInUp } from 'react-native-reanimated'
+import React, { useEffect, useState, useCallback } from 'react'
+import {
+  Alert,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+  StyleSheet,
+} from 'react-native'
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
 import Svg, { Path } from 'react-native-svg'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
@@ -12,44 +19,36 @@ import {
   kolmiSpace,
 } from '@/constants/kolmiTheme'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
+import SwipeToConfirm from '@/components/kolmi/SwipeToConfirm'
 import { addTokens, getTokens } from '@/lib/kolmi/storage'
-import { kolmiMotion, staggerDelay } from '@/lib/kolmi/motion'
 
 type Pack = {
   id: string
-  name: string
   tokens: number
-  perks: string[]
+  price: string
+  tagline: string
   highlight?: boolean
 }
 
-const packs: Pack[] = [
+const PACKS: Pack[] = [
   {
-    id: 'decouverte',
-    name: 'Découverte',
+    id: 'mois-calme',
     tokens: 3,
-    perks: ['3 demandes de rencontre', 'Lecture de votre Maison'],
+    price: '9 €',
+    tagline: 'Un mois calme',
   },
   {
-    id: 'serieux',
-    name: 'Sérieux',
-    tokens: 8,
-    perks: [
-      '8 demandes de rencontre',
-      'Sélection priorisée par le matchmaker',
-      'Lecture détaillée de votre Maison',
-    ],
+    id: 'rythme-regulier',
+    tokens: 10,
+    price: '25 €',
+    tagline: 'Le rythme régulier',
     highlight: true,
   },
   {
-    id: 'concierge',
-    name: 'Concierge',
-    tokens: 20,
-    perks: [
-      '20 demandes de rencontre',
-      'Lieux confidentiels (hôtels particuliers, clubs privés)',
-      'Accompagnement personnalisé du matchmaker',
-    ],
+    id: 'annee-editoriale',
+    tokens: 25,
+    price: '55 €',
+    tagline: "L'année éditoriale",
   },
 ]
 
@@ -67,48 +66,39 @@ export default function PremiumScreen() {
       })
   }, [])
 
-  const onPurchase = async (pack: Pack) => {
-    if (submittingId) return
-    setSubmittingId(pack.id)
-    try {
-      // Bêta privée : aucun paiement réel. On crédite localement les tokens
-      // pour permettre de tester le flow rencontre. À remplacer par un
-      // checkout serveur (Stripe) avant la sortie publique.
-      const next = await addTokens(pack.tokens)
-      setBalance(next)
-      Alert.alert(
-        'Tokens de test crédités',
-        `+${pack.tokens} token${pack.tokens > 1 ? 's' : ''}. Solde : ${next}.\n\nAucun paiement n'a été effectué.`,
-        [{ text: 'Parfait', onPress: () => router.back() }],
-      )
-    } catch (err) {
-      console.warn('[kolmi] addTokens failed', err)
-      Alert.alert(
-        'Crédit impossible',
-        "Vos tokens n'ont pas pu être crédités. Vérifiez l'espace de stockage de l'appareil et réessayez.",
-        [{ text: 'Réessayer' }],
-      )
-    } finally {
-      setSubmittingId(null)
-    }
-  }
+  const onPurchase = useCallback(
+    async (pack: Pack) => {
+      if (submittingId) return
+      setSubmittingId(pack.id)
+      try {
+        // Bêta privée : aucun paiement réel. On crédite localement les
+        // tokens pour permettre de tester le flow rencontre.
+        const next = await addTokens(pack.tokens)
+        setBalance(next)
+        Alert.alert(
+          'Tokens crédités',
+          `+${pack.tokens} token${pack.tokens > 1 ? 's' : ''}. Solde : ${next}.\n\nBêta privée — aucun paiement n'a été effectué.`,
+          [{ text: 'Parfait', onPress: () => router.back() }],
+        )
+      } catch (err) {
+        console.warn('[kolmi] addTokens failed', err)
+        Alert.alert(
+          'Crédit impossible',
+          "Vos tokens n'ont pas pu être crédités. Réessayez dans un instant.",
+        )
+      } finally {
+        setSubmittingId(null)
+      }
+    },
+    [submittingId, router],
+  )
 
   return (
-    <View style={{ flex: 1, backgroundColor: kolmiColors.bg }}>
+    <View style={styles.root}>
       <GrainOverlay />
-      <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
-        <View
-          style={{
-            paddingHorizontal: kolmiPaddingX,
-            paddingTop: kolmiSpace.xs,
-            paddingBottom: kolmiSpace.sm,
-          }}
-        >
-          <TouchableOpacity
-            onPress={() => router.back()}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            style={{ paddingVertical: 4 }}
-          >
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
             <Svg width={10} height={18} viewBox="0 0 10 18" fill="none">
               <Path
                 d="M9 1L1 9L9 17"
@@ -119,217 +109,201 @@ export default function PremiumScreen() {
               />
             </Svg>
           </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerKicker}>Tokens</Text>
+          </View>
+          <View style={styles.backBtn} />
         </View>
 
         <ScrollView
-          contentContainerStyle={{
-            paddingHorizontal: kolmiPaddingX,
-            paddingBottom: kolmiSpace.xxxl,
-            gap: kolmiSpace.lg,
-          }}
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <View style={{ gap: kolmiSpace.sm }}>
-            <Text
-              style={{
-                fontFamily: kolmiFonts.uiSemiBold,
-                fontSize: 11,
-                color: kolmiColors.accent,
-                textTransform: 'uppercase',
-                letterSpacing: 1.6,
-              }}
-            >
-              Bêta privée · Tokens de test
-            </Text>
-            <Text
-              style={{
-                fontFamily: kolmiFonts.serif,
-                fontSize: 34,
-                color: kolmiColors.text,
-                lineHeight: 40,
-                letterSpacing: -0.4,
-              }}
-            >
-              Chaque token finance une rencontre organisée pour vous.
-            </Text>
-            <Text
-              style={{
-                fontFamily: kolmiFonts.serifItalic,
-                fontSize: 16,
-                color: kolmiColors.textBody,
-                lineHeight: 22,
-              }}
-            >
-              Solde actuel : {balance === null ? '…' : `${balance} token${balance > 1 ? 's' : ''}`}.
-            </Text>
-            <View
-              style={{
-                marginTop: kolmiSpace.xs,
-                padding: kolmiSpace.sm,
-                borderRadius: kolmiRadius.md,
-                backgroundColor: kolmiColors.bgDeep,
-                borderWidth: 1,
-                borderColor: kolmiColors.outline,
-              }}
-            >
-              <Text
-                style={{
-                  fontFamily: kolmiFonts.ui,
-                  fontSize: 13,
-                  color: kolmiColors.textBody,
-                  lineHeight: 19,
-                }}
-              >
-                Pendant la bêta, les tokens sont simulés. Aucun paiement n&apos;est effectué.
-              </Text>
-            </View>
-          </View>
+          <Animated.Text
+            entering={FadeIn.duration(420)}
+            style={styles.title}
+          >
+            Plus de tokens.
+          </Animated.Text>
+          <Animated.Text
+            entering={FadeInDown.delay(180).duration(500)}
+            style={styles.subtitle}
+          >
+            La rareté est volontaire. Achetez votre prochain élan.
+          </Animated.Text>
 
-          <View style={{ gap: kolmiSpace.md, marginTop: kolmiSpace.sm }}>
-            {packs.map((pack, i) => (
+          {balance !== null && (
+            <Animated.Text
+              entering={FadeIn.delay(360).duration(500)}
+              style={styles.balance}
+            >
+              Solde actuel : {balance} token{balance > 1 ? 's' : ''}.
+            </Animated.Text>
+          )}
+
+          <View style={styles.packsList}>
+            {PACKS.map((pack, i) => (
               <Animated.View
                 key={pack.id}
-                entering={FadeInDown.delay(staggerDelay(i, 200))
-                  .duration(kolmiMotion.duration.lg)
-                  .easing(kolmiMotion.easing.soft)}
-                style={{
-                  borderWidth: pack.highlight ? 1.5 : 1,
-                  borderColor: pack.highlight
-                    ? kolmiColors.accent
-                    : kolmiColors.outline,
-                  backgroundColor: pack.highlight
-                    ? kolmiColors.bgDeep
-                    : '#FAF8F5',
-                  borderRadius: kolmiRadius.lg,
-                  padding: kolmiSpace.lg,
-                  gap: kolmiSpace.sm,
-                }}
+                entering={FadeInDown.delay(500 + i * 130).duration(500)}
+                style={[
+                  styles.pack,
+                  pack.highlight && styles.packHighlight,
+                ]}
               >
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    justifyContent: 'space-between',
-                    alignItems: 'flex-end',
-                  }}
-                >
-                  <View style={{ gap: 2 }}>
-                    <Text
-                      style={{
-                        fontFamily: kolmiFonts.serif,
-                        fontSize: 24,
-                        color: kolmiColors.text,
-                        letterSpacing: -0.3,
-                      }}
-                    >
-                      {pack.name}
-                    </Text>
-                    <Text
-                      style={{
-                        fontFamily: kolmiFonts.uiMedium,
-                        fontSize: 13,
-                        color: kolmiColors.accent,
-                        textTransform: 'uppercase',
-                        letterSpacing: 1.2,
-                      }}
-                    >
-                      {pack.tokens} tokens
-                    </Text>
+                {pack.highlight && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>Le plus choisi</Text>
                   </View>
-                  <Text
-                    style={{
-                      fontFamily: kolmiFonts.uiSemiBold,
-                      fontSize: 13,
-                      color: kolmiColors.textSecondary,
-                      textTransform: 'uppercase',
-                      letterSpacing: 1.2,
-                    }}
-                  >
-                    Achat simulé
-                  </Text>
+                )}
+                <View style={styles.packHead}>
+                  <View>
+                    <Text style={styles.packTokens}>
+                      {pack.tokens} token{pack.tokens > 1 ? 's' : ''}
+                    </Text>
+                    <Text style={styles.packTagline}>{pack.tagline}</Text>
+                  </View>
+                  <Text style={styles.packPrice}>{pack.price}</Text>
                 </View>
 
-                <View style={{ gap: 6, marginTop: 4 }}>
-                  {pack.perks.map((perk, i) => (
-                    <View
-                      key={`${pack.id}-perk-${i}`}
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'flex-start',
-                        gap: 8,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: kolmiColors.accent,
-                          fontFamily: kolmiFonts.uiSemiBold,
-                          fontSize: 14,
-                          lineHeight: 21,
-                        }}
-                      >
-                        ·
-                      </Text>
-                      <Text
-                        style={{
-                          flex: 1,
-                          fontFamily: kolmiFonts.ui,
-                          fontSize: 14,
-                          color: kolmiColors.textBody,
-                          lineHeight: 21,
-                        }}
-                      >
-                        {perk}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-
-                <TouchableOpacity
-                  onPress={() => onPurchase(pack)}
-                  activeOpacity={0.85}
+                <SwipeToConfirm
+                  label={
+                    submittingId === pack.id ? 'Crédit…' : 'Glisser pour acheter'
+                  }
+                  confirmedLabel="Acheté."
+                  onConfirm={() => onPurchase(pack)}
                   disabled={submittingId !== null}
-                  style={{
-                    marginTop: kolmiSpace.sm,
-                    height: 50,
-                    borderRadius: kolmiRadius.pill,
-                    backgroundColor: pack.highlight
-                      ? kolmiColors.accent
-                      : kolmiColors.text,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    opacity: submittingId === pack.id ? 0.6 : 1,
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontFamily: kolmiFonts.uiSemiBold,
-                      fontSize: 15,
-                      color: pack.highlight ? kolmiColors.white : '#FAF8F5',
-                      letterSpacing: 0.2,
-                    }}
-                  >
-                    {submittingId === pack.id
-                      ? 'Crédit en cours…'
-                      : `Créditer ${pack.tokens} tokens de test`}
-                  </Text>
-                </TouchableOpacity>
+                />
               </Animated.View>
             ))}
           </View>
 
-          <Text
-            style={{
-              fontFamily: kolmiFonts.serifItalic,
-              fontSize: 13,
-              color: kolmiColors.textMuted,
-              textAlign: 'center',
-              marginTop: kolmiSpace.md,
-              lineHeight: 19,
-            }}
-          >
-            Bêta privée — les tokens crédités sont des tokens de test, stockés localement sur cet appareil.
+          <Text style={styles.disclaimer}>
+            Bêta privée — les tokens crédités sont des tokens de test, stockés localement.
           </Text>
         </ScrollView>
       </SafeAreaView>
     </View>
   )
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: kolmiColors.bg },
+  safe: { flex: 1 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: kolmiPaddingX,
+    paddingTop: kolmiSpace.xs,
+    paddingBottom: kolmiSpace.sm,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  headerKicker: {
+    fontFamily: kolmiFonts.uiMedium,
+    fontSize: 10,
+    color: kolmiColors.textMuted,
+    letterSpacing: 2.6,
+    textTransform: 'uppercase',
+  },
+  scrollContent: {
+    paddingHorizontal: kolmiPaddingX,
+    paddingTop: kolmiSpace.lg,
+    paddingBottom: kolmiSpace.xxxl,
+  },
+  title: {
+    fontFamily: kolmiFonts.serif,
+    fontSize: 32,
+    color: kolmiColors.text,
+    lineHeight: 38,
+    letterSpacing: -0.4,
+  },
+  subtitle: {
+    fontFamily: kolmiFonts.serifItalic,
+    fontSize: 17,
+    lineHeight: 25,
+    color: kolmiColors.textBody,
+    marginTop: kolmiSpace.xs,
+  },
+  balance: {
+    fontFamily: kolmiFonts.uiMedium,
+    fontSize: 12,
+    color: kolmiColors.textMuted,
+    letterSpacing: 0.4,
+    marginTop: kolmiSpace.lg,
+  },
+  packsList: {
+    gap: kolmiSpace.lg,
+    marginTop: kolmiSpace.xl,
+  },
+  pack: {
+    backgroundColor: '#FAF8F5',
+    borderRadius: kolmiRadius.lg,
+    borderWidth: 1,
+    borderColor: kolmiColors.outline,
+    padding: kolmiSpace.lg,
+    gap: kolmiSpace.md,
+    position: 'relative',
+  },
+  packHighlight: {
+    borderColor: kolmiColors.accent,
+    borderWidth: 1.5,
+    backgroundColor: '#FFFAF4',
+  },
+  badge: {
+    position: 'absolute',
+    top: -10,
+    right: kolmiSpace.lg,
+    backgroundColor: kolmiColors.accent,
+    paddingHorizontal: kolmiSpace.sm,
+    paddingVertical: 4,
+    borderRadius: kolmiRadius.pill,
+  },
+  badgeText: {
+    fontFamily: kolmiFonts.uiSemiBold,
+    fontSize: 10,
+    color: kolmiColors.white,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  packHead: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  packTokens: {
+    fontFamily: kolmiFonts.serif,
+    fontSize: 28,
+    color: kolmiColors.text,
+    letterSpacing: -0.4,
+  },
+  packTagline: {
+    fontFamily: kolmiFonts.serifItalic,
+    fontSize: 14,
+    color: kolmiColors.accent,
+    marginTop: 4,
+  },
+  packPrice: {
+    fontFamily: kolmiFonts.serif,
+    fontSize: 26,
+    color: kolmiColors.text,
+    letterSpacing: -0.4,
+  },
+  disclaimer: {
+    fontFamily: kolmiFonts.serifItalic,
+    fontSize: 12,
+    color: kolmiColors.textMuted,
+    textAlign: 'center',
+    marginTop: kolmiSpace.xl,
+    lineHeight: 18,
+    paddingHorizontal: kolmiSpace.lg,
+  },
+})
