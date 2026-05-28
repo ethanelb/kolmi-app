@@ -8,6 +8,7 @@ import {
   kolmiPaddingX,
   kolmiRadius,
   kolmiSpace,
+  fontScale,
 } from '@/constants/kolmiTheme'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import DnaReveal from '@/components/kolmi/DnaReveal'
@@ -58,7 +59,6 @@ export default function MatchmakerResultScreen() {
             result={result}
             onContinue={handleContinue}
             instant={isRevisit}
-            continueLabel={isRevisit ? 'Retour' : 'Découvrir mes profils'}
           />
         )}
 
@@ -75,7 +75,7 @@ export default function MatchmakerResultScreen() {
             <Text
               style={{
                 fontFamily: kolmiFonts.serif,
-                fontSize: 28,
+                fontSize: fontScale(28),
                 color: kolmiColors.text,
                 textAlign: 'center',
                 lineHeight: 34,

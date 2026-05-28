@@ -19,11 +19,12 @@ import {
   kolmiPaddingX,
   kolmiRadius,
   kolmiSpace,
+  fontScale,
 } from '@/constants/kolmiTheme'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import { mockMeetings } from '@/data/mockMeetings'
 import { getVenueById } from '@/data/mockVenues'
-import { getSelectedProfileById } from '@/data/mockSelectedProfiles'
+import { getProfileByIdSync as getSelectedProfileById } from '@/lib/kolmi/fetchProfiles'
 import { getMeetingById, updateMeeting } from '@/lib/kolmi/storage'
 import { KOLMI_DEMO_MODE } from '@/constants/kolmiConfig'
 import type { Meeting } from '@/lib/kolmi/types'
@@ -365,7 +366,7 @@ const styles = StyleSheet.create({
   },
   dateTitle: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 32,
+    fontSize: fontScale(32),
     color: kolmiColors.text,
     lineHeight: 38,
     letterSpacing: -0.4,

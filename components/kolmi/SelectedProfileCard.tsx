@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react'
 import { Pressable, Text, View, StyleSheet } from 'react-native'
 import { Image } from 'expo-image'
-import { kolmiColors, kolmiFonts, kolmiRadius, kolmiSpace } from '@/constants/kolmiTheme'
+import { kolmiColors, kolmiFonts, kolmiRadius, kolmiSpace, fontScale } from '@/constants/kolmiTheme'
 import ProfilePhotoPlaceholder from '@/components/kolmi/ProfilePhotoPlaceholder'
 import type { SelectedProfile } from '@/data/mockSelectedProfiles'
 
@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
   },
   name: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 28,
+    fontSize: fontScale(28),
     color: kolmiColors.text,
     letterSpacing: -0.4,
     lineHeight: 32,

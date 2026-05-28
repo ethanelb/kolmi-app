@@ -16,8 +16,8 @@
     "ios": {
       "supportsTablet": false,
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Kolmi a besoin du micro pour enregistrer ta présentation vocale lors de l'inscription.",
-        "NSPhotoLibraryUsageDescription": "Kolmi a besoin d'accéder à tes photos pour les ajouter à ton profil."
+        "NSPhotoLibraryUsageDescription": "Kolmi a besoin d'accéder à tes photos pour les ajouter à ton profil.",
+        "NSLocationWhenInUseUsageDescription": "Kolmi vérifie que tu es en région parisienne — la zone de lancement de la bêta."
       },
       "bundleIdentifier": "com.anonymous.kolmi-app"
     },
@@ -27,8 +27,8 @@
         "backgroundColor": "#0F0F0F"
       },
       "permissions": [
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
       ]
     },
     "web": {
@@ -37,8 +37,13 @@
     },
     "plugins": [
       "expo-router",
-      "expo-av",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Kolmi vérifie que tu es en région parisienne — la zone de lancement de la bêta."
+        }
+      ]
     ]
   }
 }

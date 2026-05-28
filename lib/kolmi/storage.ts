@@ -3,6 +3,22 @@ import { dnaCategories } from '@/data/kolmiDna'
 import { kolmiQuestions } from '@/data/kolmiQuestions'
 import type { KolmiAnswer, KolmiDnaResult, Meeting } from './types'
 import { clearAllConversations } from './conversationEngine'
+import {
+  syncAnswerToDb,
+  syncDnaResultToDb,
+  syncMeetingDeletionToDb,
+  syncMeetingToDb,
+  syncPassedProfileToDb,
+  syncProfileToDb,
+  syncProgressToDb,
+  syncTokensToDb,
+} from './sync'
+
+// Fire-and-forget : la sync Supabase ne doit jamais bloquer l'UI ni casser
+// le flow local. Toute erreur DB est déjà loguée dans `sync.ts`.
+function fireAndForget(p: Promise<unknown>) {
+  p.catch((err) => console.warn('[kolmi.storage] sync error', err))
+}
 
 const PROGRESS_KEY = 'kolmi.progress'
 const ANSWERS_KEY = 'kolmi.answers'
@@ -80,7 +96,10 @@ export async function getKolmiProgress(): Promise<KolmiProgress> {
 
 export async function saveKolmiProgress(progress: Partial<KolmiProgress>) {
   const current = await getKolmiProgress()
-  await setJson(PROGRESS_KEY, { ...current, ...progress })
+  const next = { ...current, ...progress }
+  await setJson(PROGRESS_KEY, next)
+  // Sync les flags onboarding/matchmaker vers la DB.
+  fireAndForget(syncProgressToDb(next))
 }
 
 export async function getKolmiAnswers(): Promise<KolmiAnswer[]> {
@@ -116,9 +135,21 @@ export async function saveKolmiAnswer(answer: KolmiAnswer) {
     const next = current.filter((item) => item.questionId !== answer.questionId)
     next.push(answer)
     await setJson(ANSWERS_KEY, next)
-    // TODO Supabase sync later
+    fireAndForget(syncAnswerToDb(answer))
   } catch (err) {
     console.warn('[kolmi] saveKolmiAnswer failed', err)
+  }
+}
+
+// Wipe les réponses du matchmaker pour permettre de refaire le test.
+// On ne touche pas au DNA stocké : si l'utilisateur abandonne le retest,
+// son ancien résultat reste valide. Le nouveau DNA écrasera l'ancien
+// quand `saveKolmiDnaResult` sera appelé en fin de test.
+export async function clearKolmiAnswers(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(ANSWERS_KEY)
+  } catch (err) {
+    console.warn('[kolmi] clearKolmiAnswers failed', err)
   }
 }
 
@@ -131,7 +162,7 @@ let _dnaCache: KolmiDnaResult | null | undefined = undefined
 export async function saveKolmiDnaResult(result: KolmiDnaResult) {
   _dnaCache = result
   await setJson(DNA_RESULT_KEY, result)
-  // TODO Supabase sync later
+  fireAndForget(syncDnaResultToDb(result))
 }
 
 export async function getKolmiDnaResult(): Promise<KolmiDnaResult | null> {
@@ -180,7 +211,7 @@ export async function saveKolmiProfile(patch: Partial<KolmiProfile>) {
   // la valeur la plus récente, même si AsyncStorage prend du temps.
   _profileCache = next
   await setJson(PROFILE_KEY, next)
-  // TODO Supabase sync later
+  fireAndForget(syncProfileToDb(next))
 }
 
 // Cache mémoire des préférences. Sentinelle `undefined` distincte de
@@ -198,7 +229,9 @@ export async function saveKolmiPreferences(patch: Partial<KolmiPreferences>) {
   const next = { ...current, ...patch }
   _prefsCache = next
   await setJson(PREFERENCES_KEY, next)
-  // TODO Supabase sync later
+  // Préférences de recherche (âge/distance) — pas synchronisées en DB
+  // pour l'instant : pas de table dédiée. À ajouter si on en a besoin
+  // côté serveur (matching).
 }
 
 export async function getKolmiPreferences(): Promise<KolmiPreferences | null> {
@@ -231,23 +264,29 @@ export async function getTokens(): Promise<number> {
   return n
 }
 
+// setTokens : écriture brute sans ledger DB. Réservé aux usages internes
+// (resync depuis DB, reset). Pour toute mutation business, passer par
+// addTokens / spendToken qui enregistrent un delta avec une raison.
 export async function setTokens(value: number) {
   const sanitized = Math.max(0, value)
   _tokensCache = sanitized
   await AsyncStorage.setItem(TOKENS_KEY, String(sanitized))
 }
 
-export async function addTokens(delta: number): Promise<number> {
+export async function addTokens(delta: number, reason = 'add'): Promise<number> {
   const current = await getTokens()
   const next = Math.max(0, current + delta)
   await setTokens(next)
+  fireAndForget(syncTokensToDb(next, next - current, reason))
   return next
 }
 
-export async function spendToken(): Promise<boolean> {
+export async function spendToken(reason = 'meeting_request'): Promise<boolean> {
   const current = await getTokens()
   if (current <= 0) return false
-  await setTokens(current - 1)
+  const next = current - 1
+  await setTokens(next)
+  fireAndForget(syncTokensToDb(next, -1, reason))
   return true
 }
 
@@ -321,6 +360,7 @@ export async function passProfile(profileId: string) {
   if (current.includes(profileId)) return
   const next = [...current, profileId]
   await setJson(PASSED_PROFILES_KEY, next)
+  fireAndForget(syncPassedProfileToDb(profileId))
 }
 
 // ─── Meetings (request → schedule → confirm) ─────────────────────────
@@ -362,19 +402,22 @@ export async function saveMeeting(meeting: Meeting) {
   const all = await getMeetings()
   const next = [...all.filter((m) => m.id !== meeting.id), meeting]
   await setJson(MEETINGS_KEY, next)
-  // TODO Supabase sync later
+  fireAndForget(syncMeetingToDb(meeting))
 }
 
 export async function updateMeeting(id: string, patch: Partial<Meeting>) {
   const all = await getMeetings()
   const next = all.map((m) => (m.id === id ? { ...m, ...patch } : m))
   await setJson(MEETINGS_KEY, next)
+  const merged = next.find((m) => m.id === id)
+  if (merged) fireAndForget(syncMeetingToDb(merged))
 }
 
 export async function deleteMeeting(id: string) {
   const all = await getMeetings()
   const next = all.filter((m) => m.id !== id)
   await setJson(MEETINGS_KEY, next)
+  fireAndForget(syncMeetingDeletionToDb(id))
 }
 
 // ─── Push notifications token ────────────────────────────────────────

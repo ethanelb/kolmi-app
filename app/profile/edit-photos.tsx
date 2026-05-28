@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native'
 import { Image } from 'expo-image'
 import Svg, { Path } from 'react-native-svg'
@@ -18,12 +18,14 @@ import {
   kolmiRadius,
   kolmiFonts,
   kolmiPaddingX,
+  fontScale,
 } from '@/constants/kolmiTheme'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import { tapLight, tapMedium } from '@/lib/kolmi/haptics'
 import { getKolmiProfile, saveKolmiProfile } from '@/lib/kolmi/storage'
+import { uploadProfilePhotos } from '@/lib/kolmi/photos'
 import { safePersist } from '@/lib/kolmi/safePersist'
-import { pickProfilePhoto } from '@/lib/kolmi/photoPicker'
+import { pickProfilePhotos } from '@/lib/kolmi/photoPicker'
 
 const { width } = Dimensions.get('window')
 const SLOT_GAP = 10
@@ -43,7 +45,7 @@ type PhotoSlotProps = {
   onReorder: (from: number, to: number) => void
 }
 
-function PhotoSlot({ index, photo, isRequired, onAdd, onRemove, onReorder }: PhotoSlotProps) {
+const PhotoSlot = React.memo(function PhotoSlot({ index, photo, isRequired, onAdd, onRemove, onReorder }: PhotoSlotProps) {
   const translateX = useSharedValue(0)
   const translateY = useSharedValue(0)
   const scale = useSharedValue(1)
@@ -148,7 +150,7 @@ function PhotoSlot({ index, photo, isRequired, onAdd, onRemove, onReorder }: Pho
       </Animated.View>
     </GestureDetector>
   )
-}
+})
 
 export default function EditPhotosScreen() {
   const router = useRouter()
@@ -169,25 +171,35 @@ export default function EditPhotosScreen() {
   const filledCount = photos.filter(Boolean).length
   const isValid = filledCount >= MIN_PHOTOS
 
-  const addPhoto = async (index: number) => {
-    const uri = await pickProfilePhoto()
-    if (!uri) return
+  const addPhoto = useCallback(async (index: number) => {
+    // Multi-sélection : limit = nb slots vides à partir de l'index tapé.
+    const emptyAfter = photos
+      .map((p, i) => (p ? -1 : i))
+      .filter((i) => i >= index)
+    const limit = emptyAfter.length
+    if (limit === 0) return
+    const uris = await pickProfilePhotos(limit)
+    if (uris.length === 0) return
     setPhotos((prev) => {
       const next = [...prev]
-      next[index] = uri
+      let cursor = 0
+      for (const slotIdx of emptyAfter) {
+        if (cursor >= uris.length) break
+        next[slotIdx] = uris[cursor++]
+      }
       return next
     })
-  }
+  }, [photos])
 
-  const removePhoto = (index: number) => {
+  const removePhoto = useCallback((index: number) => {
     setPhotos((prev) => {
       const next = [...prev]
       next[index] = null
       return next
     })
-  }
+  }, [])
 
-  const reorderPhotos = (from: number, to: number) => {
+  const reorderPhotos = useCallback((from: number, to: number) => {
     if (from === to || from < 0 || to < 0 || from >= TOTAL_SLOTS || to >= TOTAL_SLOTS) return
     setPhotos((prev) => {
       const next = [...prev]
@@ -197,7 +209,7 @@ export default function EditPhotosScreen() {
       return next
     })
     tapMedium()
-  }
+  }, [])
 
   return (
     <View style={styles.root}>
@@ -234,9 +246,7 @@ export default function EditPhotosScreen() {
                 index={i}
                 photo={photo}
                 isRequired={i < MIN_PHOTOS}
-                onAdd={(idx) => {
-                  void addPhoto(idx)
-                }}
+                onAdd={addPhoto}
                 onRemove={removePhoto}
                 onReorder={reorderPhotos}
               />
@@ -254,12 +264,14 @@ export default function EditPhotosScreen() {
             onPress={async () => {
               if (!isValid) return
               tapMedium()
+              const localUris = photos.filter((p): p is string => Boolean(p))
               const ok = await safePersist(() =>
-                saveKolmiProfile({
-                  photoUrls: photos.filter((p): p is string => Boolean(p)),
-                }),
+                saveKolmiProfile({ photoUrls: localUris }),
               )
               if (!ok) return
+              uploadProfilePhotos(localUris)
+                .then((remote) => saveKolmiProfile({ photoUrls: remote }))
+                .catch((err) => console.warn('[kolmi] photo upload bg failed', err))
               router.back()
             }}
             activeOpacity={isValid ? 0.85 : 1}
@@ -289,7 +301,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 36,
+    fontSize: fontScale(36),
     color: kolmiColors.text,
     lineHeight: 42,
     letterSpacing: -0.4,
@@ -353,7 +365,7 @@ const styles = StyleSheet.create({
   },
   plus: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 32,
+    fontSize: fontScale(32),
   },
   plusRequired: { color: kolmiColors.accent },
   plusOptional: { color: kolmiColors.textMuted },

@@ -21,7 +21,7 @@ import {
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import SwipeToConfirm from '@/components/kolmi/SwipeToConfirm'
 import { mockMeetings } from '@/data/mockMeetings'
-import { getSelectedProfileById } from '@/data/mockSelectedProfiles'
+import { getProfileByIdSync as getSelectedProfileById } from '@/lib/kolmi/fetchProfiles'
 import { venuesByCity } from '@/data/mockVenues'
 import type { Venue } from '@/lib/kolmi/types'
 import { getMeetingById, saveMeeting, updateMeeting } from '@/lib/kolmi/storage'

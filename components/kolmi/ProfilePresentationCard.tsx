@@ -16,6 +16,7 @@ import {
   kolmiFonts,
   kolmiRadius,
   kolmiSpace,
+  fontScale,
 } from '@/constants/kolmiTheme'
 import type { SelectedProfile } from '@/data/mockSelectedProfiles'
 import type { ProfileStage } from '@/lib/kolmi/conversationEngine'
@@ -301,7 +302,7 @@ const styles = StyleSheet.create({
   },
   photoLetter: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 90,
+    fontSize: fontScale(90),
     color: kolmiColors.accent,
   },
 

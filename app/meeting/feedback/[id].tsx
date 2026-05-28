@@ -17,9 +17,10 @@ import {
   kolmiPaddingX,
   kolmiRadius,
   kolmiSpace,
+  fontScale,
 } from '@/constants/kolmiTheme'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
-import { getSelectedProfileById } from '@/data/mockSelectedProfiles'
+import { getProfileByIdSync as getSelectedProfileById } from '@/lib/kolmi/fetchProfiles'
 import { getMeetingById, updateMeeting } from '@/lib/kolmi/storage'
 import { simulateOtherFeedback } from '@/lib/kolmi/mockBackend'
 import { tapMedium, success } from '@/lib/kolmi/haptics'
@@ -304,7 +305,7 @@ const styles = StyleSheet.create({
 
   title: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 28,
+    fontSize: fontScale(28),
     color: kolmiColors.text,
     lineHeight: 34,
     letterSpacing: -0.4,

@@ -2,6 +2,47 @@
 // Bordeaux red wordmark + accents, high-contrast serif titles,
 // outline secondary CTA, subtle grain on every screen.
 
+import { Dimensions, PixelRatio } from 'react-native'
+
+// Responsive scaling — base = iPhone 13/14/15 (390 × 844 logical px).
+// Pour les écrans plus petits (SE = 375) ou plus grands (Pro Max = 430),
+// les helpers ajustent dimensions et typographie sans casser le design.
+//
+// - scale(n) : largeur — utiliser pour widths, paddings horizontaux, icônes
+// - vScale(n) : hauteur — utiliser pour heights, paddings verticaux
+// - mScale(n, factor=0.5) : modéré — utiliser pour fontSize et radius (évite
+//   le sur-dimensionnement sur grands écrans, le sous-dimensionnement sur petits)
+// - fontScale(n) : alias mScale pour la typographie
+//
+// Note : Dimensions.get est lu une fois au boot (suffit pour sizing initial).
+// Pour des layouts qui doivent réagir à la rotation ou au multitâche iPad,
+// utiliser useWindowDimensions() côté composant.
+
+const BASE_WIDTH = 390
+const BASE_HEIGHT = 844
+
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window')
+
+export const scale = (size: number) => (SCREEN_W / BASE_WIDTH) * size
+export const vScale = (size: number) => (SCREEN_H / BASE_HEIGHT) * size
+export const mScale = (size: number, factor = 0.5) =>
+  size + (scale(size) - size) * factor
+export const fontScale = (size: number) =>
+  Math.round(PixelRatio.roundToNearestPixel(mScale(size, 0.5)))
+
+// Breakpoints — basés sur la largeur logique iOS.
+// small : SE / mini (≤ 375)
+// medium : 13/14/15 standard (390)
+// large : Plus / Pro Max (≥ 414)
+// tablet : iPad (≥ 768) — l'app n'est pas pensée tablette mais le flag permet
+// de désactiver des éléments qui cassent à grande largeur.
+export const isSmallDevice = SCREEN_W <= 375
+export const isLargeDevice = SCREEN_W >= 414
+export const isTablet = SCREEN_W >= 768
+
+export const screenWidth = SCREEN_W
+export const screenHeight = SCREEN_H
+
 export const kolmiColors = {
   bg: '#F5F1EA',           // cream paper
   bgDeep: '#EFEAE0',       // slightly deeper cream — used for gradient/grain

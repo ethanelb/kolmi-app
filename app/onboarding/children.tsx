@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
@@ -8,9 +8,10 @@ import {
   kolmiRadius,
   kolmiFonts,
   kolmiPaddingX,
+  fontScale,
 } from '@/constants/kolmiTheme'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
-import { tapMedium, select } from '@/lib/kolmi/haptics'
+import { select } from '@/lib/kolmi/haptics'
 import { getKolmiProfile, saveKolmiProfile } from '@/lib/kolmi/storage'
 import { safePersist } from '@/lib/kolmi/safePersist'
 
@@ -19,6 +20,7 @@ const OPTIONS = ['Oui', 'Non', "N'en veut pas"]
 export default function ChildrenScreen() {
   const router = useRouter()
   const [selected, setSelected] = useState<string | null>(null)
+  const advancingRef = useRef(false)
 
   useEffect(() => {
     getKolmiProfile().then((p) => {
@@ -26,7 +28,22 @@ export default function ChildrenScreen() {
     })
   }, [])
 
-  const isValid = selected !== null
+  const onPick = (value: string) => {
+    if (advancingRef.current) return
+    advancingRef.current = true
+    select()
+    setSelected(value)
+    setTimeout(async () => {
+      const ok = await safePersist(() =>
+        saveKolmiProfile({ hasChildren: value }),
+      )
+      if (!ok) {
+        advancingRef.current = false
+        return
+      }
+      router.push('/onboarding/notifications')
+    }, 180)
+  }
 
   return (
     <View style={styles.root}>
@@ -48,10 +65,7 @@ export default function ChildrenScreen() {
                 <TouchableOpacity
                   key={o}
                   style={[styles.option, active && styles.optionActive]}
-                  onPress={() => {
-                    select()
-                    setSelected(o)
-                  }}
+                  onPress={() => onPick(o)}
                   activeOpacity={0.75}
                 >
                   <Text style={[styles.optionText, active && styles.optionTextActive]}>{o}</Text>
@@ -60,24 +74,6 @@ export default function ChildrenScreen() {
             })}
           </View>
         </ScrollView>
-
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={[styles.cta, !isValid && styles.ctaDisabled]}
-            onPress={async () => {
-              if (!isValid) return
-              tapMedium()
-              const ok = await safePersist(() =>
-                saveKolmiProfile({ hasChildren: selected! }),
-              )
-              if (!ok) return
-              router.push('/onboarding/notifications')
-            }}
-            activeOpacity={isValid ? 0.85 : 1}
-          >
-            <Text style={[styles.ctaText, !isValid && styles.ctaTextDisabled]}>Continuer</Text>
-          </TouchableOpacity>
-        </View>
       </SafeAreaView>
     </View>
   )
@@ -94,7 +90,7 @@ const styles = StyleSheet.create({
     paddingTop: kolmiSpace.sm,
   },
   backBtn: { padding: kolmiSpace.xs },
-  backText: { fontFamily: kolmiFonts.serif, fontSize: 28, color: kolmiColors.text, lineHeight: 28 },
+  backText: { fontFamily: kolmiFonts.serif, fontSize: fontScale(28), color: kolmiColors.text, lineHeight: 28 },
   optionalLabel: {
     fontFamily: kolmiFonts.uiMedium,
     fontSize: 12,
@@ -107,7 +103,7 @@ const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: kolmiPaddingX, paddingTop: kolmiSpace.md, paddingBottom: kolmiSpace.lg },
   title: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 36,
+    fontSize: fontScale(36),
     color: kolmiColors.text,
     lineHeight: 42,
     letterSpacing: -0.4,

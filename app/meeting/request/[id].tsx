@@ -24,11 +24,12 @@ import {
   kolmiPaddingX,
   kolmiRadius,
   kolmiSpace,
+  fontScale,
 } from '@/constants/kolmiTheme'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import SwipeToConfirm from '@/components/kolmi/SwipeToConfirm'
 import AnimatedCounter from '@/components/kolmi/AnimatedCounter'
-import { getSelectedProfileById } from '@/data/mockSelectedProfiles'
+import { getProfileByIdSync as getSelectedProfileById } from '@/lib/kolmi/fetchProfiles'
 import {
   deleteMeeting,
   findActiveMeetingForProfile,
@@ -404,7 +405,7 @@ const styles = StyleSheet.create({
   },
   vignettePhotoLetter: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 32,
+    fontSize: fontScale(32),
     color: kolmiColors.accent,
   },
   vignetteName: {
@@ -429,7 +430,7 @@ const styles = StyleSheet.create({
 
   title: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 32,
+    fontSize: fontScale(32),
     color: kolmiColors.text,
     lineHeight: 38,
     letterSpacing: -0.4,
@@ -460,7 +461,7 @@ const styles = StyleSheet.create({
   },
   tokenCounter: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 56,
+    fontSize: fontScale(56),
     lineHeight: 60,
     color: kolmiColors.accent,
     letterSpacing: -1,

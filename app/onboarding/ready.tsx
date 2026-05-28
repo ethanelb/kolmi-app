@@ -1,9 +1,11 @@
-import React, { useEffect } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import Animated, {
+  cancelAnimation,
   interpolateColor,
+  runOnJS,
   useSharedValue,
   useAnimatedStyle,
   withTiming,
@@ -20,6 +22,7 @@ import {
   kolmiRadius,
   kolmiFonts,
   kolmiPaddingX,
+  fontScale,
 } from '@/constants/kolmiTheme'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import KolmiWordmark from '@/components/kolmi/KolmiWordmark'
@@ -43,6 +46,10 @@ const SLOT_MS = 1400
 
 export default function ReadyScreen() {
   const router = useRouter()
+  const [busy, setBusy] = useState(false)
+  const [revealed, setRevealed] = useState(false)
+  // Garde-fou contre les double-skips (tap multiple pendant le fast-forward).
+  const skippedRef = useRef(false)
 
   // Une SharedValue d'opacité + une de "trace" par phrase.
   const op0 = useSharedValue(0)
@@ -129,7 +136,11 @@ export default function ReadyScreen() {
 
     ctaOpacity.value = withDelay(
       finalStart + 800,
-      withTiming(1, { duration: 500 }),
+      withTiming(1, { duration: 500 }, (finished) => {
+        // À la fin du fade-in du CTA, on est arrivé au final state — on
+        // peut désactiver le fast-forward et rendre le tap-screen inerte.
+        if (finished) runOnJS(setRevealed)(true)
+      }),
     )
     ctaTranslate.value = withDelay(
       finalStart + 800,
@@ -162,12 +173,97 @@ export default function ReadyScreen() {
     )
   }, [])
 
+  // Fast-forward du manifeste : si l'utilisateur tape l'écran avant que
+  // l'animation naturelle n'expose le wordmark + CTA (~5,5 s), on saute
+  // au final state en ~280 ms. Tous les `withDelay/withRepeat` en cours
+  // sont annulés sur les SharedValues affectées pour éviter qu'ils ne
+  // viennent réécrire l'état après le skip.
+  const revealNow = useCallback(() => {
+    if (skippedRef.current || revealed) return
+    skippedRef.current = true
+    tapMedium()
+
+    const fast = { duration: 280, easing: Easing.out(Easing.cubic) }
+
+    // Fade-out de toutes les phrases du manifeste.
+    ;[op0, op1, op2].forEach((sv) => {
+      cancelAnimation(sv)
+      sv.value = withTiming(0, fast)
+    })
+    ;[tr0, tr1, tr2].forEach((sv) => {
+      cancelAnimation(sv)
+    })
+
+    // Fade-in du wordmark.
+    cancelAnimation(wordmarkOpacity)
+    cancelAnimation(wordmarkScale)
+    wordmarkOpacity.value = withTiming(1, fast)
+    wordmarkScale.value = withSpring(1, { damping: 14, stiffness: 140 })
+
+    // Flottement du wordmark (boucle infinie).
+    cancelAnimation(wordmarkFloat)
+    wordmarkFloat.value = withDelay(
+      400,
+      withRepeat(
+        withSequence(
+          withTiming(-3, { duration: 1800, easing: Easing.inOut(Easing.quad) }),
+          withTiming(3, { duration: 1800, easing: Easing.inOut(Easing.quad) }),
+        ),
+        -1,
+        true,
+      ),
+    )
+
+    // CTA : opacity + translate + pulse + arrow drift.
+    cancelAnimation(ctaOpacity)
+    cancelAnimation(ctaTranslate)
+    ctaOpacity.value = withTiming(1, fast, (finished) => {
+      if (finished) runOnJS(setRevealed)(true)
+    })
+    ctaTranslate.value = withSpring(0, { damping: 16, stiffness: 140 })
+
+    cancelAnimation(ctaPulse)
+    ctaPulse.value = withDelay(
+      600,
+      withRepeat(
+        withSequence(
+          withTiming(1.02, { duration: 1100, easing: Easing.inOut(Easing.quad) }),
+          withTiming(1, { duration: 1100, easing: Easing.inOut(Easing.quad) }),
+        ),
+        -1,
+        true,
+      ),
+    )
+    cancelAnimation(arrowDrift)
+    arrowDrift.value = withDelay(
+      600,
+      withRepeat(
+        withSequence(
+          withTiming(4, { duration: 900, easing: Easing.inOut(Easing.quad) }),
+          withTiming(0, { duration: 900, easing: Easing.inOut(Easing.quad) }),
+        ),
+        -1,
+        true,
+      ),
+    )
+  }, [
+    revealed,
+    op0, op1, op2, tr0, tr1, tr2,
+    wordmarkOpacity, wordmarkScale, wordmarkFloat,
+    ctaOpacity, ctaTranslate, ctaPulse, arrowDrift,
+  ])
+
   const onContinue = async () => {
+    if (busy) return
+    setBusy(true)
     tapMedium()
     const ok = await safePersist(() =>
       saveKolmiProgress({ hasCompletedBaseOnboarding: true }),
     )
-    if (!ok) return
+    if (!ok) {
+      setBusy(false)
+      return
+    }
 
     // 3 tokens offerts à la fin de l'onboarding — uniquement si le solde
     // est actuellement à 0 pour ne pas écraser un solde existant après
@@ -259,8 +355,15 @@ export default function ReadyScreen() {
         {/* Scène centrale : les 3 phrases sont stackées en absolute pour
             qu'elles partagent exactement le même point d'ancrage et que
             le crossfade soit propre. Le wordmark reprend la même zone
-            une fois le manifeste terminé. */}
-        <View style={styles.stage}>
+            une fois le manifeste terminé. Tap n'importe où sur la stage
+            pendant le manifeste fast-forward vers le wordmark + CTA. */}
+        <Pressable
+          style={styles.stage}
+          onPress={revealNow}
+          disabled={revealed}
+          accessibilityRole="button"
+          accessibilityLabel="Passer le manifeste"
+        >
           <PhraseLine text={MANIFESTO[0]} phraseStyle={phrase0Style} traceStyle={trace0Style} />
           <PhraseLine text={MANIFESTO[1]} phraseStyle={phrase1Style} traceStyle={trace1Style} />
           <PhraseLine text={MANIFESTO[2]} phraseStyle={phrase2Style} traceStyle={trace2Style} />
@@ -268,24 +371,26 @@ export default function ReadyScreen() {
           <Animated.View style={[styles.wordmarkWrap, wordmarkStyle]} pointerEvents="none">
             <KolmiWordmark size={72} color={kolmiColors.accent} />
           </Animated.View>
-        </View>
+        </Pressable>
 
         <View style={styles.footer}>
-          <Animated.View style={ctaStyle}>
+          <Animated.View style={[ctaStyle, busy && { opacity: 0.7 }]}>
             <TouchableOpacity
               activeOpacity={1}
               onPress={onContinue}
               onPressIn={handlePressIn}
               onPressOut={handlePressOut}
+              disabled={busy}
               accessibilityRole="button"
-              accessibilityLabel="Pousser la porte — entrer dans Kolmi"
+              accessibilityState={{ disabled: busy }}
+              accessibilityLabel="Découvrir ma Maison — entrer dans Kolmi"
             >
               {/* Tampon : cadre bordeaux fin, pas de fill au repos. Le
                   fill bordeaux apparaît au press en tween continu, comme
                   une pression de cachet. */}
               <Animated.View style={[styles.cta, ctaInkStyle]}>
                 <Animated.Text style={[styles.ctaText, ctaTextStyle]}>
-                  Pousser la porte
+                  Découvrir ma Maison
                 </Animated.Text>
                 <Animated.Text style={[styles.ctaArrow, ctaTextStyle, arrowStyle]}>
                   →
@@ -344,7 +449,7 @@ const styles = StyleSheet.create({
   },
   phraseText: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 34,
+    fontSize: fontScale(34),
     lineHeight: 42,
     color: kolmiColors.text,
     letterSpacing: -0.5,
@@ -370,13 +475,11 @@ const styles = StyleSheet.create({
     paddingTop: kolmiSpace.sm,
     gap: kolmiSpace.md,
   },
-  // Tampon éditorial : cadre bordeaux fin, fond transparent au repos.
-  // Le press déclenche un fill bordeaux progressif (cf ctaInkStyle).
+  // Tampon éditorial : pas de cadre. Le press déclenche un fill bordeaux
+  // progressif (cf ctaInkStyle) qui agit comme la seule affordance visuelle.
   cta: {
     height: 60,
     borderRadius: kolmiRadius.pill,
-    borderWidth: 1.2,
-    borderColor: kolmiColors.accent,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

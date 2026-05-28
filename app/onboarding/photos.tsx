@@ -10,6 +10,7 @@ import Animated, {
   withSpring,
   withTiming,
   runOnJS,
+  Easing,
 } from 'react-native-reanimated'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import {
@@ -18,13 +19,16 @@ import {
   kolmiRadius,
   kolmiFonts,
   kolmiPaddingX,
+  fontScale,
 } from '@/constants/kolmiTheme'
 import SignupHeader from '@/components/kolmi/SignupHeader'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import { tapLight, tapMedium } from '@/lib/kolmi/haptics'
-import { getKolmiProfile, saveKolmiProfile } from '@/lib/kolmi/storage'
+import { getKolmiProfile, saveKolmiProfile, type KolmiProfile } from '@/lib/kolmi/storage'
 import { safePersist } from '@/lib/kolmi/safePersist'
-import { pickProfilePhoto } from '@/lib/kolmi/photoPicker'
+import { safeRead } from '@/lib/kolmi/safeRead'
+import { pickProfilePhotos } from '@/lib/kolmi/photoPicker'
+import { uploadProfilePhotos } from '@/lib/kolmi/photos'
 
 const SIGNUP_TOTAL_STEPS = 10
 const { width } = Dimensions.get('window')
@@ -50,6 +54,24 @@ function PhotoSlot({ index, photo, isRequired, onAdd, onRemove, onReorder }: Pho
   const translateY = useSharedValue(0)
   const scale = useSharedValue(1)
   const dragging = useSharedValue(0)
+  // Pré-cue : pendant que le long-press s'arme (les premières ~150 ms du
+  // touch), on enclenche un léger scale-down 0.97 pour signaler que le
+  // touch a été vu. Si l'utilisateur lâche avant 250 ms, le pan ne
+  // s'active pas mais l'utilisateur a quand même eu un retour. Si le pan
+  // s'active, le scale-up 1.08 prend le relais et masque proprement le
+  // pré-cue.
+  const press = useSharedValue(0)
+
+  const longPress = Gesture.LongPress()
+    .enabled(!!photo)
+    .minDuration(150)
+    .maxDistance(8)
+    .onStart(() => {
+      press.value = withTiming(1, { duration: 120, easing: Easing.out(Easing.cubic) })
+    })
+    .onFinalize(() => {
+      press.value = withTiming(0, { duration: 220, easing: Easing.out(Easing.cubic) })
+    })
 
   const pan = Gesture.Pan()
     .enabled(!!photo)
@@ -90,19 +112,30 @@ function PhotoSlot({ index, photo, isRequired, onAdd, onRemove, onReorder }: Pho
       dragging.value = withTiming(0, { duration: 180 })
     })
 
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-      { scale: scale.value },
-    ],
-    zIndex: dragging.value > 0 ? 20 : 0,
-    elevation: dragging.value > 0 ? 12 : 0,
-    shadowOpacity: dragging.value * 0.22,
-  }))
+  // Le long-press s'exécute avant le pan via Gesture.Simultaneous : on veut
+  // les deux feedbacks (pré-cue puis lift) sans que l'un cancel l'autre.
+  const composed = Gesture.Simultaneous(longPress, pan)
+
+  const animStyle = useAnimatedStyle(() => {
+    // Le scale est composite : si on est en drag, le 1.08 du drag domine.
+    // Sinon, on applique le pré-cue 1 → 0.97 piloté par `press`.
+    const dragScale = scale.value
+    const preCueScale = 1 - press.value * 0.03
+    const finalScale = dragging.value > 0 ? dragScale : preCueScale
+    return {
+      transform: [
+        { translateX: translateX.value },
+        { translateY: translateY.value },
+        { scale: finalScale },
+      ],
+      zIndex: dragging.value > 0 ? 20 : 0,
+      elevation: dragging.value > 0 ? 12 : 0,
+      shadowOpacity: dragging.value * 0.22,
+    }
+  })
 
   return (
-    <GestureDetector gesture={pan}>
+    <GestureDetector gesture={composed}>
       <Animated.View style={[styles.slotWrap, animStyle]}>
         <TouchableOpacity
           style={[
@@ -155,9 +188,15 @@ function PhotoSlot({ index, photo, isRequired, onAdd, onRemove, onReorder }: Pho
 export default function PhotosScreen() {
   const router = useRouter()
   const [photos, setPhotos] = useState<(string | null)[]>([null, null, null, null, null, null])
+  // Évite le flash "grille vide" quand l'utilisateur revient sur l'écran
+  // avec des photos déjà uploadées : on attend l'hydratation avant de
+  // monter la grille.
+  const [profileLoaded, setProfileLoaded] = useState(false)
 
   useEffect(() => {
-    getKolmiProfile().then((p) => {
+    let cancelled = false
+    safeRead(() => getKolmiProfile(), {} as KolmiProfile).then((p) => {
+      if (cancelled) return
       if (p.photoUrls?.length) {
         const slots: (string | null)[] = Array(TOTAL_SLOTS).fill(null)
         p.photoUrls.forEach((url, i) => {
@@ -165,18 +204,34 @@ export default function PhotosScreen() {
         })
         setPhotos(slots)
       }
+      setProfileLoaded(true)
     })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const filledCount = photos.filter(Boolean).length
   const isValid = filledCount >= MIN_PHOTOS
 
   const addPhoto = async (index: number) => {
-    const uri = await pickProfilePhoto()
-    if (!uri) return
+    // Limite = nombre de slots vides restants à partir de l'index tapé.
+    // L'user peut sélectionner plusieurs photos d'un coup, on les distribue
+    // dans les slots vides à partir de cet index puis dans les suivants.
+    const emptyAfter = photos
+      .map((p, i) => (p ? -1 : i))
+      .filter((i) => i >= index)
+    const limit = emptyAfter.length
+    if (limit === 0) return
+    const uris = await pickProfilePhotos(limit)
+    if (uris.length === 0) return
     setPhotos((prev) => {
       const next = [...prev]
-      next[index] = uri
+      let cursor = 0
+      for (const slotIdx of emptyAfter) {
+        if (cursor >= uris.length) break
+        next[slotIdx] = uris[cursor++]
+      }
       return next
     })
   }
@@ -191,11 +246,14 @@ export default function PhotosScreen() {
 
   const reorderPhotos = (from: number, to: number) => {
     if (from === to || from < 0 || to < 0 || from >= TOTAL_SLOTS || to >= TOTAL_SLOTS) return
+    // Insert + shift (et non swap) : drag de 0 vers 5 doit décaler les
+    // photos 1-5 d'un cran vers la gauche, comme sur Hinge ou Tinder.
+    // L'ancien comportement (swap) était contre-intuitif quand on
+    // traversait plusieurs slots.
     setPhotos((prev) => {
       const next = [...prev]
-      const tmp = next[from]
-      next[from] = next[to]
-      next[to] = tmp
+      const [moved] = next.splice(from, 1)
+      next.splice(to, 0, moved)
       return next
     })
     tapMedium()
@@ -219,21 +277,25 @@ export default function PhotosScreen() {
               : 'Parfait ! Tu peux continuer'}
           </Text>
 
-          <View style={styles.grid}>
-            {photos.map((photo, i) => (
-              <PhotoSlot
-                key={i}
-                index={i}
-                photo={photo}
-                isRequired={i < MIN_PHOTOS}
-                onAdd={(idx) => {
-                  void addPhoto(idx)
-                }}
-                onRemove={removePhoto}
-                onReorder={reorderPhotos}
-              />
-            ))}
-          </View>
+          {profileLoaded ? (
+            <View style={styles.grid}>
+              {photos.map((photo, i) => (
+                <PhotoSlot
+                  key={i}
+                  index={i}
+                  photo={photo}
+                  isRequired={i < MIN_PHOTOS}
+                  onAdd={(idx) => {
+                    void addPhoto(idx)
+                  }}
+                  onRemove={removePhoto}
+                  onReorder={reorderPhotos}
+                />
+              ))}
+            </View>
+          ) : (
+            <View style={styles.gridPlaceholder} />
+          )}
 
           <Text style={styles.hint}>
             Maintiens une photo et glisse pour réorganiser · {MIN_PHOTOS} photos minimum
@@ -242,16 +304,22 @@ export default function PhotosScreen() {
 
         <View style={styles.footer}>
           <TouchableOpacity
-            style={[styles.cta, !isValid && styles.ctaDisabled]}
+            style={[styles.cta, (!isValid || !profileLoaded) && styles.ctaDisabled]}
+            disabled={!profileLoaded}
             onPress={async () => {
               if (!isValid) return
               tapMedium()
+              const localUris = photos.filter((p): p is string => Boolean(p))
+              // Save local d'abord pour ne pas bloquer la navigation si
+              // l'upload Supabase met du temps. L'upload se déclenche en
+              // arrière-plan puis re-save avec les URLs publiques.
               const ok = await safePersist(() =>
-                saveKolmiProfile({
-                  photoUrls: photos.filter((p): p is string => Boolean(p)),
-                }),
+                saveKolmiProfile({ photoUrls: localUris }),
               )
               if (!ok) return
+              uploadProfilePhotos(localUris)
+                .then((remote) => saveKolmiProfile({ photoUrls: remote }))
+                .catch((err) => console.warn('[kolmi] photo upload bg failed', err))
               router.push('/onboarding/selfie')
             }}
             activeOpacity={isValid ? 0.85 : 1}
@@ -276,7 +344,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 36,
+    fontSize: fontScale(36),
     color: kolmiColors.text,
     lineHeight: 42,
     letterSpacing: -0.4,
@@ -292,6 +360,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: SLOT_GAP,
+    marginTop: kolmiSpace.xl,
+  },
+  // Empreinte exacte de la grille (2 lignes × hauteur slot + gap) pendant
+  // l'hydratation du profil — évite que le hint et le CTA sautent.
+  gridPlaceholder: {
+    height: SLOT_HEIGHT * ROWS + SLOT_GAP * (ROWS - 1),
     marginTop: kolmiSpace.xl,
   },
   slotWrap: {
@@ -340,7 +414,7 @@ const styles = StyleSheet.create({
   },
   plus: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 32,
+    fontSize: fontScale(32),
   },
   plusRequired: { color: kolmiColors.accent },
   plusOptional: { color: kolmiColors.textMuted },

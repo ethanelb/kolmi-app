@@ -9,64 +9,74 @@ import {
   kolmiRadius,
   kolmiFonts,
   kolmiPaddingX,
+  fontScale,
 } from '@/constants/kolmiTheme'
-import SignupHeader from '@/components/kolmi/SignupHeader'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
-import {
-  getKolmiPreferences,
-  saveKolmiPreferences,
-  saveKolmiProgress,
-} from '@/lib/kolmi/storage'
+import { getKolmiPreferences, saveKolmiPreferences } from '@/lib/kolmi/storage'
 import { safePersist } from '@/lib/kolmi/safePersist'
-import { select, success } from '@/lib/kolmi/haptics'
-
-const SIGNUP_TOTAL_STEPS = 11
+import { select, tapMedium } from '@/lib/kolmi/haptics'
 
 const DISTANCES = ['5 km', '10 km', '25 km', '50 km', '100 km', 'Toute la France']
+const AGE_OPTIONS = [21, 23, 25, 28, 30, 35, 40, 45, 50]
 
-export default function PreferencesScreen() {
+export default function EditPreferencesScreen() {
   const router = useRouter()
   const [minAge, setMinAge] = useState(22)
   const [maxAge, setMaxAge] = useState(35)
   const [distance, setDistance] = useState('25 km')
+  const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
-    getKolmiPreferences().then((prefs) => {
-      if (!prefs) return
-      setMinAge(prefs.minAge)
-      setMaxAge(prefs.maxAge)
-      setDistance(prefs.distance)
-    })
+    getKolmiPreferences()
+      .then((prefs) => {
+        if (prefs) {
+          setMinAge(prefs.minAge)
+          setMaxAge(prefs.maxAge)
+          setDistance(prefs.distance)
+        }
+      })
+      .finally(() => setLoaded(true))
   }, [])
 
-  const handleFinish = async () => {
-    success()
-    const ok = await safePersist(async () => {
-      await saveKolmiPreferences({ minAge, maxAge, distance })
-      await saveKolmiProgress({ hasCompletedBaseOnboarding: true })
-    })
+  const handleSave = async () => {
+    tapMedium()
+    const ok = await safePersist(() =>
+      saveKolmiPreferences({ minAge, maxAge, distance }),
+    )
     if (!ok) return
-    router.replace('/matchmaker')
+    router.back()
   }
 
   return (
     <View style={styles.root}>
       <GrainOverlay />
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <SignupHeader
-          step={SIGNUP_TOTAL_STEPS}
-          total={SIGNUP_TOTAL_STEPS}
-          onBack={() => router.back()}
-        />
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            style={{ paddingVertical: 4 }}
+          >
+            <Svg width={10} height={18} viewBox="0 0 10 18" fill="none">
+              <Path
+                d="M9 1L1 9L9 17"
+                stroke={kolmiColors.text}
+                strokeWidth={1.8}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </Svg>
+          </TouchableOpacity>
+        </View>
 
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.title}>{'Tes\npréférences'}</Text>
+          <Text style={styles.title}>{'Vos\npréférences'}</Text>
           <Text style={styles.subtitle}>
-            Kolmi les utilise pour t'envoyer une sélection adaptée
+            Kolmi les utilise pour vous envoyer une sélection adaptée
           </Text>
 
           <View style={styles.section}>
@@ -74,7 +84,7 @@ export default function PreferencesScreen() {
             <Text style={styles.value}>{minAge} – {maxAge} ans</Text>
 
             <View style={styles.ageRow}>
-              {[18, 20, 22, 25, 28, 30, 35, 40, 45, 50].map(age => {
+              {AGE_OPTIONS.map(age => {
                 const active = age === minAge || age === maxAge
                 return (
                   <TouchableOpacity
@@ -95,14 +105,14 @@ export default function PreferencesScreen() {
                         } else {
                           Alert.alert(
                             'Tranche trop étroite',
-                            "Garde au moins 2 ans d'écart entre l'âge minimum et l'âge maximum.",
+                            "Gardez au moins 2 ans d'écart entre l'âge minimum et l'âge maximum.",
                           )
                         }
                       } catch (err) {
                         console.warn('[kolmi] age update failed', err)
                         Alert.alert(
                           'Action impossible',
-                          "Impossible de modifier la tranche d'âge. Réessaie dans un instant.",
+                          "Impossible de modifier la tranche d'âge. Réessayez dans un instant.",
                         )
                       }
                     }}
@@ -134,7 +144,7 @@ export default function PreferencesScreen() {
                         console.warn('[kolmi] distance update failed', err)
                         Alert.alert(
                           'Action impossible',
-                          "Impossible de modifier la distance. Réessaie dans un instant.",
+                          "Impossible de modifier la distance. Réessayez dans un instant.",
                         )
                       }
                     }}
@@ -148,29 +158,18 @@ export default function PreferencesScreen() {
               })}
             </View>
           </View>
-
-          <View style={styles.infoCard}>
-            <Svg width={16} height={16} viewBox="0 0 16 16" fill="none">
-              <Path
-                d="M8 1L9.3 5.7L14 7L9.3 8.3L8 13L6.7 8.3L2 7L6.7 5.7L8 1Z"
-                stroke={kolmiColors.accent}
-                strokeWidth={1.3}
-                strokeLinejoin="round"
-              />
-            </Svg>
-            <Text style={styles.infoText}>
-              L'IA de Kolmi affine les suggestions au fil du temps selon tes interactions
-            </Text>
-          </View>
         </ScrollView>
 
         <View style={styles.footer}>
           <TouchableOpacity
-            style={styles.cta}
-            onPress={handleFinish}
-            activeOpacity={0.85}
+            style={[styles.cta, !loaded && styles.ctaDisabled]}
+            onPress={handleSave}
+            disabled={!loaded}
+            activeOpacity={loaded ? 0.85 : 1}
           >
-            <Text style={styles.ctaText}>Commencer Kolmi</Text>
+            <Text style={[styles.ctaText, !loaded && styles.ctaTextDisabled]}>
+              Enregistrer
+            </Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -181,6 +180,11 @@ export default function PreferencesScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: kolmiColors.bg },
   safe: { flex: 1 },
+  header: {
+    paddingHorizontal: kolmiPaddingX,
+    paddingTop: kolmiSpace.xs,
+    paddingBottom: kolmiSpace.sm,
+  },
   scroll: { flex: 1 },
   scrollContent: {
     paddingHorizontal: kolmiPaddingX,
@@ -190,7 +194,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 36,
+    fontSize: fontScale(36),
     color: kolmiColors.text,
     lineHeight: 42,
     letterSpacing: -0.4,
@@ -260,23 +264,6 @@ const styles = StyleSheet.create({
     fontFamily: kolmiFonts.uiSemiBold,
     color: kolmiColors.accent,
   },
-  infoCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: kolmiSpace.sm,
-    padding: kolmiSpace.md,
-    borderRadius: kolmiRadius.lg,
-    backgroundColor: kolmiColors.bgDeep,
-    borderWidth: 1,
-    borderColor: kolmiColors.accent + '33',
-  },
-  infoText: {
-    flex: 1,
-    fontFamily: kolmiFonts.ui,
-    fontSize: 13,
-    color: kolmiColors.textBody,
-    lineHeight: 19,
-  },
   footer: {
     paddingHorizontal: kolmiPaddingX,
     paddingBottom: kolmiSpace.xl,
@@ -293,10 +280,18 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     elevation: 4,
   },
+  ctaDisabled: {
+    backgroundColor: kolmiColors.surfaceSoft,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
   ctaText: {
     fontFamily: kolmiFonts.uiSemiBold,
     fontSize: 16,
     color: kolmiColors.white,
     letterSpacing: 0.2,
+  },
+  ctaTextDisabled: {
+    color: kolmiColors.textMuted,
   },
 })

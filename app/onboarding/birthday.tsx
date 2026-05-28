@@ -8,15 +8,18 @@ import {
   kolmiRadius,
   kolmiFonts,
   kolmiPaddingX,
+  scale,
+  fontScale,
 } from '@/constants/kolmiTheme'
 import SignupHeader from '@/components/kolmi/SignupHeader'
 import Wheel from '@/components/kolmi/Wheel'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import { tapMedium } from '@/lib/kolmi/haptics'
-import { getKolmiProfile, saveKolmiProfile } from '@/lib/kolmi/storage'
+import { getKolmiProfile, saveKolmiProfile, type KolmiProfile } from '@/lib/kolmi/storage'
 import { safePersist } from '@/lib/kolmi/safePersist'
+import { safeRead } from '@/lib/kolmi/safeRead'
 
-const SIGNUP_TOTAL_STEPS = 11
+const SIGNUP_TOTAL_STEPS = 10
 
 const MONTHS = [
   'Janvier',
@@ -37,8 +40,11 @@ export default function BirthdayScreen() {
   const router = useRouter()
 
   const days = useMemo(() => Array.from({ length: 31 }, (_, i) => i + 1), [])
+  // L'année max correspond à l'âge minimum légal (21 ans). Au 2026-05-06,
+  // une personne née en 2005 a 20-21 ans selon le mois/jour ; la validation
+  // `isValid` rejette les dates trop récentes.
   const years = useMemo(
-    () => Array.from({ length: 70 }, (_, i) => 2007 - i),
+    () => Array.from({ length: 70 }, (_, i) => 2005 - i),
     [],
   )
 
@@ -46,20 +52,30 @@ export default function BirthdayScreen() {
   const [monthIdx, setMonthIdx] = useState<number>(0)
   const [year, setYear] = useState<number>(1995)
 
+  // On affiche les wheels immédiatement avec les valeurs par défaut. Si
+  // l'user revient sur l'écran avec un profil déjà sauvegardé, les wheels
+  // se repositionnent silencieusement quand AsyncStorage résout (le useEffect
+  // de Wheel.tsx scrollTo sur changement de value). Privilégier l'affichage
+  // instantané pour le cas commun (onboarding = nouveaux users).
   useEffect(() => {
-    getKolmiProfile().then((p) => {
+    let cancelled = false
+    safeRead(() => getKolmiProfile(), {} as KolmiProfile).then((p) => {
+      if (cancelled) return
       if (p.birthDate) {
         setDay(p.birthDate.day)
         setMonthIdx(Math.max(0, p.birthDate.month - 1))
         setYear(p.birthDate.year)
       }
     })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const isValid = useMemo(() => {
     const today = new Date()
     const minBirth = new Date(
-      today.getFullYear() - 18,
+      today.getFullYear() - 21,
       today.getMonth(),
       today.getDate(),
     )
@@ -72,7 +88,7 @@ export default function BirthdayScreen() {
       <GrainOverlay />
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <SignupHeader
-          step={3}
+          step={2}
           total={SIGNUP_TOTAL_STEPS}
           onBack={() => router.back()}
         />
@@ -85,21 +101,21 @@ export default function BirthdayScreen() {
               items={days}
               value={day}
               onChange={setDay}
-              width={70}
+              width={scale(70)}
               cycle
             />
             <Wheel
               items={MONTHS}
               value={MONTHS[monthIdx]}
               onChange={m => setMonthIdx(MONTHS.indexOf(m))}
-              width={130}
+              width={scale(130)}
               cycle
             />
             <Wheel
               items={years}
               value={year}
               onChange={setYear}
-              width={80}
+              width={scale(80)}
             />
           </View>
 
@@ -111,6 +127,7 @@ export default function BirthdayScreen() {
         <View style={styles.footer}>
           <TouchableOpacity
             style={[styles.cta, !isValid && styles.ctaDisabled]}
+            disabled={!isValid}
             onPress={async () => {
               if (!isValid) return
               tapMedium()
@@ -120,7 +137,7 @@ export default function BirthdayScreen() {
                 }),
               )
               if (!ok) return
-              router.push('/onboarding/name')
+              router.push('/onboarding/localisation')
             }}
             activeOpacity={isValid ? 0.85 : 1}
           >
@@ -144,9 +161,9 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 36,
+    fontSize: fontScale(36),
     color: kolmiColors.text,
-    lineHeight: 42,
+    lineHeight: fontScale(42),
     letterSpacing: -0.4,
   },
   wheels: {
@@ -158,7 +175,7 @@ const styles = StyleSheet.create({
   footnote: {
     textAlign: 'center',
     fontFamily: kolmiFonts.ui,
-    fontSize: 12,
+    fontSize: fontScale(12),
     color: kolmiColors.textMuted,
     marginTop: kolmiSpace.xl,
   },

@@ -72,7 +72,7 @@ export const kolmiQuestions: KolmiQuestion[] = [
     section: 'intensity',
     phaseTitle: PHASE_TITLES.intensity,
     preface:
-      "Bonjour. Je suis votre matchmaker personnel chez KOLMI. Je vais vous poser huit questions pour lire votre Maison — répondez d'instinct.",
+      "Avant de vous présenter quelqu'un, j'aimerais vous lire. Huit questions — répondez d'instinct, sans trop y penser.",
     text:
       "Quand quelqu'un vous plaît vraiment, vous le ressentez fort, presque physiquement ?",
     options: standardOptions('intensity_1'),

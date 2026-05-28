@@ -23,6 +23,7 @@ import {
   kolmiPaddingX,
   kolmiRadius,
   kolmiSpace,
+  fontScale,
 } from '@/constants/kolmiTheme'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import SwipeToConfirm from '@/components/kolmi/SwipeToConfirm'
@@ -451,7 +452,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 32,
+    fontSize: fontScale(32),
     color: kolmiColors.text,
     lineHeight: 38,
     letterSpacing: -0.4,
@@ -558,7 +559,7 @@ const styles = StyleSheet.create({
   },
   packTokens: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 28,
+    fontSize: fontScale(28),
     color: kolmiColors.text,
     letterSpacing: -0.4,
   },

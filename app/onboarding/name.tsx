@@ -17,15 +17,17 @@ import {
   kolmiRadius,
   kolmiFonts,
   kolmiPaddingX,
+  fontScale,
 } from '@/constants/kolmiTheme'
 import SignupHeader from '@/components/kolmi/SignupHeader'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import EmptyKeyboardAccessory, { EMPTY_ACCESSORY_ID } from '@/components/kolmi/EmptyKeyboardAccessory'
 import { tapMedium } from '@/lib/kolmi/haptics'
-import { getKolmiProfile, saveKolmiProfile } from '@/lib/kolmi/storage'
+import { getKolmiProfile, saveKolmiProfile, type KolmiProfile } from '@/lib/kolmi/storage'
 import { safePersist } from '@/lib/kolmi/safePersist'
+import { safeRead } from '@/lib/kolmi/safeRead'
 
-const SIGNUP_TOTAL_STEPS = 11
+const SIGNUP_TOTAL_STEPS = 10
 
 export default function NameScreen() {
   const router = useRouter()
@@ -36,16 +38,25 @@ export default function NameScreen() {
 
   // Load saved firstName first, then focus — sequencing prevents the
   // AsyncStorage resolve from overwriting fresh user input mid-typing.
+  // Le focus est déclenché en ~50 ms après l'hydratation (au lieu de 250 ms
+  // arbitraires) : l'utilisateur perçoit l'apparition du clavier comme
+  // immédiate. Le cleanup du setTimeout était précédemment imbriqué dans le
+  // `.then()` et donc jamais exécuté par React — désormais l'id est conservé
+  // au scope du `useEffect` pour qu'il soit clearable.
   useEffect(() => {
     let cancelled = false
-    getKolmiProfile().then((p) => {
+    let focusTimer: ReturnType<typeof setTimeout> | null = null
+    safeRead(() => getKolmiProfile(), {} as KolmiProfile).then((p) => {
       if (cancelled) return
       if (p.firstName) setName(p.firstName)
-      const t = setTimeout(() => inputRef.current?.focus(), 250)
-      return () => clearTimeout(t)
+      focusTimer = setTimeout(() => {
+        if (cancelled) return
+        inputRef.current?.focus()
+      }, 50)
     })
     return () => {
       cancelled = true
+      if (focusTimer) clearTimeout(focusTimer)
     }
   }, [])
 
@@ -54,7 +65,7 @@ export default function NameScreen() {
       <GrainOverlay />
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <SignupHeader
-          step={4}
+          step={1}
           total={SIGNUP_TOTAL_STEPS}
           onBack={() => router.back()}
         />
@@ -80,6 +91,7 @@ export default function NameScreen() {
                 onChangeText={setName}
                 placeholder="Prénom"
                 placeholderTextColor={kolmiColors.textGhost}
+                caretHidden
                 autoCapitalize="words"
                 maxLength={30}
                 returnKeyType="done"
@@ -100,7 +112,7 @@ export default function NameScreen() {
                   saveKolmiProfile({ firstName: name.trim() }),
                 )
                 if (!ok) return
-                router.push('/onboarding/gender')
+                router.push('/onboarding/birthday')
               }}
               activeOpacity={isValid ? 0.85 : 1}
             >
@@ -127,7 +139,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 36,
+    fontSize: fontScale(36),
     color: kolmiColors.text,
     lineHeight: 42,
     letterSpacing: -0.4,

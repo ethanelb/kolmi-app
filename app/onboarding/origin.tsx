@@ -9,6 +9,7 @@ import {
   kolmiRadius,
   kolmiFonts,
   kolmiPaddingX,
+  fontScale,
 } from '@/constants/kolmiTheme'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import { tapMedium, select } from '@/lib/kolmi/haptics'
@@ -126,12 +127,12 @@ const styles = StyleSheet.create({
     paddingTop: kolmiSpace.sm,
   },
   backBtn: { padding: kolmiSpace.xs },
-  backText: { fontFamily: kolmiFonts.serif, fontSize: 28, color: kolmiColors.text, lineHeight: 28 },
+  backText: { fontFamily: kolmiFonts.serif, fontSize: fontScale(28), color: kolmiColors.text, lineHeight: 28 },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: kolmiPaddingX, paddingTop: kolmiSpace.md, paddingBottom: kolmiSpace.lg },
   title: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 36,
+    fontSize: fontScale(36),
     color: kolmiColors.text,
     lineHeight: 42,
     letterSpacing: -0.4,

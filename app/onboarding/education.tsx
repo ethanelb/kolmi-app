@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
@@ -8,9 +8,10 @@ import {
   kolmiRadius,
   kolmiFonts,
   kolmiPaddingX,
+  fontScale,
 } from '@/constants/kolmiTheme'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
-import { tapMedium, select } from '@/lib/kolmi/haptics'
+import { select } from '@/lib/kolmi/haptics'
 import { getKolmiProfile, saveKolmiProfile } from '@/lib/kolmi/storage'
 import { safePersist } from '@/lib/kolmi/safePersist'
 
@@ -19,6 +20,10 @@ const OPTIONS = ['Lycée', 'Bac', 'Bac+2 / Bac+3', 'Bac+5', 'Doctorat', 'Autre']
 export default function EducationScreen() {
   const router = useRouter()
   const [selected, setSelected] = useState<string | null>(null)
+  // Empêche le double-tap pendant les 180 ms entre la sélection visuelle
+  // et la navigation. Sans ce ref l'utilisateur peut taper deux options
+  // d'affilée et déclencher deux pushs concurrents.
+  const advancingRef = useRef(false)
 
   useEffect(() => {
     getKolmiProfile().then((p) => {
@@ -26,12 +31,21 @@ export default function EducationScreen() {
     })
   }, [])
 
-  const persistAndNext = async (path: string, value: string | null) => {
-    if (value !== null) {
-      const ok = await safePersist(() => saveKolmiProfile({ education: value }))
-      if (!ok) return
-    }
-    router.push(path as any)
+  const onPick = (value: string) => {
+    if (advancingRef.current) return
+    advancingRef.current = true
+    select()
+    setSelected(value)
+    setTimeout(async () => {
+      const ok = await safePersist(() =>
+        saveKolmiProfile({ education: value }),
+      )
+      if (!ok) {
+        advancingRef.current = false
+        return
+      }
+      router.push('/onboarding/occupation')
+    }, 180)
   }
 
   return (
@@ -54,10 +68,7 @@ export default function EducationScreen() {
                 <TouchableOpacity
                   key={o}
                   style={[styles.option, active && styles.optionActive]}
-                  onPress={() => {
-                    select()
-                    setSelected(o)
-                  }}
+                  onPress={() => onPick(o)}
                   activeOpacity={0.75}
                 >
                   <Text style={[styles.optionText, active && styles.optionTextActive]}>{o}</Text>
@@ -66,20 +77,6 @@ export default function EducationScreen() {
             })}
           </View>
         </ScrollView>
-
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={[styles.cta, !selected && styles.ctaDisabled]}
-            onPress={() => {
-              if (!selected) return
-              tapMedium()
-              persistAndNext('/onboarding/occupation', selected)
-            }}
-            activeOpacity={selected ? 0.85 : 1}
-          >
-            <Text style={[styles.ctaText, !selected && styles.ctaTextDisabled]}>Continuer</Text>
-          </TouchableOpacity>
-        </View>
       </SafeAreaView>
     </View>
   )
@@ -96,7 +93,7 @@ const styles = StyleSheet.create({
     paddingTop: kolmiSpace.sm,
   },
   backBtn: { padding: kolmiSpace.xs },
-  backText: { fontFamily: kolmiFonts.serif, fontSize: 28, color: kolmiColors.text, lineHeight: 28 },
+  backText: { fontFamily: kolmiFonts.serif, fontSize: fontScale(28), color: kolmiColors.text, lineHeight: 28 },
   optionalLabel: {
     fontFamily: kolmiFonts.uiMedium,
     fontSize: 12,
@@ -113,7 +110,7 @@ const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: kolmiPaddingX, paddingTop: kolmiSpace.md, paddingBottom: kolmiSpace.lg },
   title: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 36,
+    fontSize: fontScale(36),
     color: kolmiColors.text,
     lineHeight: 42,
     letterSpacing: -0.4,

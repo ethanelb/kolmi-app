@@ -4,12 +4,14 @@ import { Image } from 'expo-image'
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'
+import Svg, { Path } from 'react-native-svg'
 import {
   kolmiColors,
   kolmiFonts,
   kolmiPaddingX,
   kolmiRadius,
   kolmiSpace,
+  fontScale,
 } from '@/constants/kolmiTheme'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import EncountersSegmentedControl, {
@@ -18,7 +20,7 @@ import EncountersSegmentedControl, {
 import { mockMeetings } from '@/data/mockMeetings'
 import { mockSelectedProfiles, type SelectedProfile } from '@/data/mockSelectedProfiles'
 import { getMeetings, getPassedProfiles } from '@/lib/kolmi/storage'
-import { getSelectedProfileById } from '@/data/mockSelectedProfiles'
+import { getProfileByIdSync as getSelectedProfileById } from '@/lib/kolmi/fetchProfiles'
 import { KOLMI_DEMO_MODE } from '@/constants/kolmiConfig'
 import { kolmiMotion, staggerDelay } from '@/lib/kolmi/motion'
 import type { Meeting, MeetingStatus } from '@/lib/kolmi/types'
@@ -194,6 +196,30 @@ export default function EncountersScreen() {
     <View style={styles.root}>
       <GrainOverlay />
       <SafeAreaView style={styles.safe} edges={['top']}>
+        {/* Bouton retour en flow (pas absolu) pour ne pas chevaucher la
+            status bar. Routé explicitement vers /conversation. */}
+        <View style={styles.backRow}>
+          <TouchableOpacity
+            onPress={() => router.navigate('/(tabs)/conversation')}
+            activeOpacity={0.7}
+            style={styles.backButton}
+            hitSlop={10}
+            accessibilityLabel="Retour à l'accueil"
+            accessibilityRole="button"
+          >
+            <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+              <Path
+                d="M14.5 5.5L7.5 12l7 6.5"
+                stroke={kolmiColors.text}
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+              />
+            </Svg>
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.header}>
           <Text style={styles.kicker}>Vos</Text>
           <Text style={styles.title}>Rencontres.</Text>
@@ -495,9 +521,22 @@ const ArchiveRow = React.memo(function ArchiveRow({
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: kolmiColors.bg },
   safe: { flex: 1 },
+  backRow: {
+    flexDirection: 'row',
+    paddingHorizontal: kolmiPaddingX,
+    paddingTop: kolmiSpace.sm,
+    paddingBottom: kolmiSpace.xs,
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: -6,
+  },
   header: {
     paddingHorizontal: kolmiPaddingX,
-    paddingTop: kolmiSpace.md,
+    paddingTop: kolmiSpace.xs,
     paddingBottom: kolmiSpace.sm,
     gap: 4,
   },
@@ -510,7 +549,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 34,
+    fontSize: fontScale(34),
     color: kolmiColors.text,
     lineHeight: 40,
     letterSpacing: -0.4,

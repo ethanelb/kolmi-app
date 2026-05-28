@@ -83,14 +83,14 @@ export function resolveAxisProfile(scores: KolmiAxisScores): AxisProfile {
 
 // Lookup direct des 8 combinaisons. La clé est `intensity|rhythm|openness`.
 const PROFILE_TO_CATEGORY: Record<string, DnaCategoryId> = {
-  'ardent|fast|open': 'cinabre',
-  'ardent|fast|selective': 'carmen',
-  'ardent|slow|open': 'saudade',
+  'ardent|fast|open': 'gigi',
+  'ardent|fast|selective': 'amare',
+  'ardent|slow|open': 'solea',
   'ardent|slow|selective': 'terracotta',
-  'calm|fast|open': 'montparnasse',
-  'calm|fast|selective': 'bauhaus',
-  'calm|slow|open': 'bloomsbury',
-  'calm|slow|selective': 'indigo',
+  'calm|fast|open': 'fiora',
+  'calm|fast|selective': 'lumi',
+  'calm|slow|open': 'calia',
+  'calm|slow|selective': 'vesna',
 }
 
 export function mapAxisProfileToCategory(profile: AxisProfile): DnaCategoryId {
@@ -98,5 +98,5 @@ export function mapAxisProfileToCategory(profile: AxisProfile): DnaCategoryId {
   // Le lookup est exhaustif (8 entrées pour 8 combinaisons), mais on
   // garde un fallback explicite vers la Maison "doux totale" pour
   // satisfaire TS et couvrir un futur changement d'axe.
-  return PROFILE_TO_CATEGORY[key] ?? 'indigo'
+  return PROFILE_TO_CATEGORY[key] ?? 'vesna'
 }

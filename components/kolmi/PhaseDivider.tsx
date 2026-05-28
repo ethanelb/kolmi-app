@@ -8,52 +8,52 @@ type Props = {
 
 const ROMAN_BY_INDEX = ['I', 'II', 'III', 'IV', 'V', 'VI']
 
-// Parses "Phase N — Title" into roman numeral + clean title.
-// Falls back to the raw text if it doesn't match the pattern.
+// Parse "Phase N — Title" → { roman, title }. Tolerant fallback.
 function parsePhase(raw: string): { roman: string; title: string } {
   const match = raw.match(/^Phase\s+(\d+)\s*[—-]\s*(.+)$/i)
   if (match) {
     const n = parseInt(match[1], 10)
     return { roman: ROMAN_BY_INDEX[n - 1] ?? String(n), title: match[2].trim() }
   }
-  return { roman: '✦', title: raw }
+  return { roman: '·', title: raw }
 }
 
-// Chapter-break phase divider — roman numeral, ornament, small-caps title.
-// Replaces the generic outline divider with editorial book-page typography.
+// Marqueur de chapitre composé sur une seule ligne :
+//   ── I ──   INTENSITÉ
+// Hairline 0.6 + romain bordeaux + petit-titre tracking large.
+// Rythme aéré au-dessus/dessous (40 / 28 px) pour faire respirer la page.
 function PhaseDivider({ text }: Props) {
   const { roman, title } = parsePhase(text)
   return (
-    <View style={{ alignItems: 'center', marginVertical: 36, gap: 8 }}>
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 14,
+        marginTop: 40,
+        marginBottom: 28,
+      }}
+    >
+      <View style={{ width: 28, height: 0.6, backgroundColor: kolmiColors.accent }} />
       <Text
         style={{
-          fontFamily: kolmiFonts.serif,
-          fontSize: 32,
-          color: kolmiColors.text,
-          lineHeight: 40,
-          letterSpacing: 1,
+          fontFamily: kolmiFonts.serifItalic,
+          fontSize: 22,
+          color: kolmiColors.accent,
+          lineHeight: 24,
+          letterSpacing: 0.5,
         }}
       >
         {roman}
       </Text>
-      <Text
-        style={{
-          fontFamily: kolmiFonts.serif,
-          fontSize: 14,
-          color: kolmiColors.accent,
-          letterSpacing: 4,
-        }}
-      >
-        ·   ·   ·
-      </Text>
+      <View style={{ flex: 1, height: 0.6, backgroundColor: 'rgba(26,26,26,0.18)' }} />
       <Text
         style={{
           fontFamily: kolmiFonts.uiMedium,
-          fontSize: 11,
-          letterSpacing: 2.4,
+          fontSize: 10,
+          letterSpacing: 2.6,
           textTransform: 'uppercase',
           color: kolmiColors.textBody,
-          marginTop: 2,
         }}
       >
         {title}

@@ -1,25 +1,41 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
-import { View, Text, StyleSheet, Modal, Pressable, TouchableOpacity } from 'react-native'
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  Modal,
+  Pressable,
+  TouchableOpacity,
+} from 'react-native'
+import { Image } from 'expo-image'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'
+import Svg, { Path, Rect, Circle } from 'react-native-svg'
+import Animated, { FadeInUp } from 'react-native-reanimated'
 import {
   kolmiColors,
   kolmiFonts,
   kolmiPaddingX,
   kolmiRadius,
   kolmiSpace,
+  fontScale,
 } from '@/constants/kolmiTheme'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
-import MatchmakerTimeline from '@/components/kolmi/MatchmakerTimeline'
+import KolmiWordmark from '@/components/kolmi/KolmiWordmark'
 import { mockSelectedProfiles } from '@/data/mockSelectedProfiles'
+import { rankProfilesByAffinity } from '@/lib/kolmi/matching'
+import { fetchSelectableProfiles } from '@/lib/kolmi/fetchProfiles'
 import {
   getKolmiDnaResult,
+  getKolmiProfile,
   getPassedProfiles,
   passProfile,
   getTokens,
   getMeetings,
   isSubscribed,
   getHasPurchased,
+  type KolmiProfile,
 } from '@/lib/kolmi/storage'
 import { safePersist } from '@/lib/kolmi/safePersist'
 import {
@@ -30,8 +46,10 @@ import {
   cleanupOldConversations,
   todayKey,
   type ConversationState,
-  type Choice,
+  type TimelineEvent,
 } from '@/lib/kolmi/conversationEngine'
+import { kolmiMotion, staggerDelay } from '@/lib/kolmi/motion'
+import type { Meeting } from '@/lib/kolmi/types'
 import type { KolmiDnaResult } from '@/lib/kolmi/types'
 
 // ─── Nudge premium — 3 variants en cycle ───────────────────────────
@@ -101,9 +119,13 @@ export default function ConversationTabScreen() {
   // Variant du popup affiché — cycle 0 → 1 → 2 → 0… à chaque
   // déclenchement pour ne pas répéter la même pitch trois fois.
   const [nudgeVariant, setNudgeVariant] = useState<NudgeVariant>('full')
-  // Index dans state.events à partir duquel on doit animer. Mis à jour
-  // après chaque décision pour ne ré-animer que les nouveaux events.
-  const [freshFromIndex, setFreshFromIndex] = useState(0)
+  // Photo de profil pour l'avatar header — lue au focus.
+  const [profilePhoto, setProfilePhoto] = useState<string | undefined>(undefined)
+  // Meetings actifs — affichés sous "Mes rencontres" dans le feed.
+  const [meetings, setMeetings] = useState<Meeting[]>([])
+  // Profils déjà passés — récupéré au focus pour filtrer le feed
+  // « Mes intros » après une décision prise sur /matches/[id].
+  const [passedProfileIds, setPassedProfileIds] = useState<string[]>([])
   // Profils du jour (selectedSlots) — figé une fois la conversation
   // construite pour la première fois.
   const profilesRef = useRef<typeof mockSelectedProfiles>([])
@@ -120,7 +142,7 @@ export default function ConversationTabScreen() {
   const load = useCallback(async () => {
     await cleanupOldConversations()
     const day = todayKey()
-    const [stored, dna, passed, balance, subscribed, purchased] =
+    const [stored, dna, passed, balance, subscribed, purchased, allProfiles] =
       await Promise.all([
         loadConversation(day),
         getKolmiDnaResult(),
@@ -128,6 +150,7 @@ export default function ConversationTabScreen() {
         getTokens(),
         isSubscribed(),
         getHasPurchased(),
+        fetchSelectableProfiles(),
       ])
     dnaRef.current = dna
     setTokens(balance)
@@ -135,10 +158,8 @@ export default function ConversationTabScreen() {
     setHasPurchased(purchased)
 
     if (stored) {
-      // Conversation existante du jour — on la restaure tel quel,
-      // freshFromIndex = events.length pour ne rien ré-animer.
+      // Conversation existante du jour — on la restaure tel quel.
       setState(stored)
-      setFreshFromIndex(stored.events.length)
       // Initialise le compteur sur la valeur restaurée — un user qui
       // ouvre l'app avec 5 décisions déjà prises ne doit PAS recevoir
       // le nudge (il est arrivé là hier, ou il l'a déjà ignoré).
@@ -146,9 +167,14 @@ export default function ConversationTabScreen() {
         (e) => e.kind === 'user_decision',
       ).length
       // Reconstruit la liste des profils référés par la conversation
-      // pour pouvoir les passer à recordDecision.
+      // pour pouvoir les passer à recordDecision. On essaie d'abord en
+      // DB (fetched) puis en mock pour les ids qui n'existent pas en DB.
       profilesRef.current = stored.profileIds
-        .map((id) => mockSelectedProfiles.find((p) => p.id === id))
+        .map(
+          (id) =>
+            allProfiles.find((p) => p.id === id) ??
+            mockSelectedProfiles.find((p) => p.id === id),
+        )
         .filter((p): p is (typeof mockSelectedProfiles)[number] => p !== undefined)
       return
     }
@@ -159,15 +185,17 @@ export default function ConversationTabScreen() {
     // profils déjà passés). Cap : 10 par défaut, ILLIMITÉ pour les
     // abonnés (la formule "Abonnement" a comme promesse explicite "des
     // profils par jour illimités").
-    const filtered = mockSelectedProfiles.filter(
-      (p) => !passed.includes(p.id),
-    )
-    const candidates = subscribed ? filtered : filtered.slice(0, 10)
+    const notPassed = allProfiles.filter((p) => !passed.includes(p.id))
+    // Matching DNA : on classe par affinité avec la Maison du user
+    // (mêmes axes → score haut, opposés totaux → filtrés). Si le user
+    // n'a pas encore fait le matchmaker, `dna === null` → rankProfilesByAffinity
+    // retourne tout dans l'ordre d'origine.
+    const ranked = rankProfilesByAffinity(notPassed, dna)
+    const candidates = subscribed ? ranked : ranked.slice(0, 10)
     profilesRef.current = candidates
 
     const fresh = buildDayConversation(candidates, dna)
     setState(fresh)
-    setFreshFromIndex(0) // tout est neuf, anime tout
     saveConversation(fresh).catch(() => {})
   }, [])
 
@@ -202,8 +230,23 @@ export default function ConversationTabScreen() {
     useCallback(() => {
       // À chaque retour sur le tab, refresh tokens (peut avoir changé
       // depuis Premium ou meeting/request) — mais on ne re-load PAS la
-      // conversation pour ne pas perdre le state d'animation.
+      // conversation pour ne pas perdre l'ordre/contenu de la sélection.
       getTokens().then(setTokens).catch(() => {})
+
+      // Refresh meetings — l'utilisateur peut avoir confirmé / décliné
+      // une rencontre depuis /meeting/* et on veut que le feed reflète
+      // ces changements quand il revient sur l'accueil.
+      getMeetings().then(setMeetings).catch(() => {})
+      // Refresh passed profiles — l'utilisateur peut avoir tapé « Pas
+      // pour moi » sur /matches/[id], la liste « Mes intros » doit
+      // immédiatement exclure ce profil.
+      getPassedProfiles().then(setPassedProfileIds).catch(() => {})
+
+      // La photo d'avatar du header peut avoir été modifiée dans
+      // profile/edit-photos — on relit à chaque focus.
+      getKolmiProfile()
+        .then((p: KolmiProfile) => setProfilePhoto(p.photoUrls?.[0]))
+        .catch(() => {})
 
       // Day rollover : si l'app est restée ouverte et qu'on a passé
       // minuit, le state encore en mémoire reste sur dayKey d'hier. On
@@ -250,10 +293,12 @@ export default function ConversationTabScreen() {
               profilesRef.current,
               dnaRef.current,
             )
-            setFreshFromIndex(prev.events.length)
             saveConversation(next).catch(() => {})
             return next
           })
+          // Update local meetings list so the new request shows up
+          // immediately in « Mes rencontres ».
+          getMeetings().then(setMeetings).catch(() => {})
         } catch {
           // Au pire, on laisse l'utilisateur réessayer — pas de signal
           // utile à pousser ici.
@@ -263,56 +308,9 @@ export default function ConversationTabScreen() {
     }, [load, pendingProfileId]),
   )
 
-  const handleDecision = useCallback(
-    async (profileId: string, choice: Choice) => {
-      if (!state) return
-
-      if (choice === 'request') {
-        // Token guard : si 0 tokens, on bloque ici. Si OK, on navigue
-        // vers /meeting/request/[id] qui se charge du SwipeToConfirm
-        // final. On NE record PAS la décision tout de suite — sinon un
-        // user qui back out de la confirmation verrait son MiniRecap
-        // « Demandé » alors qu'aucun meeting n'a été créé. La timeline
-        // est patchée au retour si on détecte un meeting effectif.
-        if (tokens <= 0) {
-          setShowTokenAlert(true)
-          return
-        }
-        setPendingProfileId(profileId)
-        router.push(`/meeting/request/${profileId}`)
-        return
-      }
-
-      // Pass : persiste passProfile, patch la conversation.
-      await safePersist(() => passProfile(profileId))
-      const next = recordDecision(
-        state,
-        profileId,
-        'pass',
-        profilesRef.current,
-        dnaRef.current,
-      )
-      setState(next)
-      setFreshFromIndex(state.events.length)
-      saveConversation(next).catch(() => {})
-    },
-    [state, tokens, router],
-  )
-
   const handleProfileTap = useCallback(
     (profileId: string) => router.push(`/matches/${profileId}`),
     [router],
-  )
-
-  const handleTimelineSettled = useCallback(
-    (lastId: string) => {
-      if (!state) return
-      if (state.cursorEventId === lastId) return
-      const next = { ...state, cursorEventId: lastId }
-      setState(next)
-      saveConversation(next).catch(() => {})
-    },
-    [state],
   )
 
   const closeTokenAlert = useCallback(() => setShowTokenAlert(false), [])
@@ -327,41 +325,264 @@ export default function ConversationTabScreen() {
     router.push('/premium')
   }, [router])
 
+  // ─── Dérivés pour le feed ───────────────────────────────────────────
+  // « Mes intros » = profils du jour pas encore décidés (ni request, ni
+  // pass) et qui n'ont pas non plus été passés depuis /matches/[id].
+  const decidedFromEvents = new Set(
+    state?.events
+      .filter((e): e is Extract<TimelineEvent, { kind: 'user_decision' }> => e.kind === 'user_decision')
+      .map((e) => e.profileId) ?? [],
+  )
+  const passedSet = new Set(passedProfileIds)
+  // On filtre aussi les profils pour lesquels un meeting est en cours
+  // (request envoyée mais user_decision pas encore patché par focus).
+  const meetingProfileIds = new Set(
+    meetings.filter((m) => m.status !== 'declined').map((m) => m.profileId),
+  )
+  const introProfiles = profilesRef.current.filter(
+    (p) =>
+      !decidedFromEvents.has(p.id) &&
+      !passedSet.has(p.id) &&
+      !meetingProfileIds.has(p.id),
+  )
+
+  // Greeting du matchmaker — premier message d'ouverture dans la
+  // conversation du jour. Si rien (cas edge), fallback générique.
+  const openingMessage = state?.events.find(
+    (e): e is Extract<TimelineEvent, { kind: 'matchmaker_message' }> =>
+      e.kind === 'matchmaker_message',
+  )
+  const openingText =
+    openingMessage?.text ?? 'Voici votre sélection du jour.'
+  const openingTime = formatHourMinute(openingMessage?.at)
+
+  // Date label sous le header (« mercredi 27 mai »).
+  const dayLabel = (() => {
+    const header = state?.events.find(
+      (e): e is Extract<TimelineEvent, { kind: 'day_header' }> => e.kind === 'day_header',
+    )
+    return header?.label ?? frenchDateLabel(new Date())
+  })()
+
+  // Rencontres en cours — actives = ni declined ni completed.
+  const activeMeetings = meetings.filter(
+    (m) => m.status !== 'declined' && m.status !== 'completed',
+  )
+
   return (
     <View style={styles.root}>
       <GrainOverlay />
-      <SafeAreaView style={styles.safe} edges={['top']}>
-        {/* Header minimal en haut — kicker + indicateur de tokens */}
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        {/* Header : avatar profil (gauche) — wordmark kolmi (centre) —
+            icône Rencontres (droite). Le pill tokens a migré dans le
+            tab profil. */}
         <View style={styles.header}>
-          <Text style={styles.kicker}>Correspondance du jour</Text>
           <TouchableOpacity
-            onPress={() => router.push('/premium')}
-            activeOpacity={0.7}
-            style={[styles.tokenIndicator, tokens === 0 && styles.tokenIndicatorEmpty]}
-            hitSlop={8}
-            accessibilityLabel={
-              tokens > 0
-                ? `${tokens} tokens disponibles, voir les recharges`
-                : 'Aucun token, voir les recharges'
-            }
+            onPress={() => router.push('/(tabs)/profile')}
+            activeOpacity={0.8}
+            style={styles.avatarButton}
+            hitSlop={10}
+            accessibilityLabel="Mon profil"
             accessibilityRole="button"
           >
-            <View style={[styles.tokenDot, tokens === 0 && styles.tokenDotEmpty]} />
-            <Text style={[styles.tokenCount, tokens === 0 && styles.tokenCountEmpty]}>
-              {tokens}
-            </Text>
+            {profilePhoto ? (
+              <Image
+                source={{ uri: profilePhoto }}
+                style={styles.avatarImage}
+                contentFit="cover"
+                transition={200}
+              />
+            ) : (
+              <View style={styles.avatarFallback}>
+                <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+                  <Path
+                    d="M12 12.5a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5ZM4.5 20c0-3.5 3.36-6.25 7.5-6.25S19.5 16.5 19.5 20"
+                    stroke={kolmiColors.text}
+                    strokeWidth={1.5}
+                    strokeLinecap="round"
+                    fill="none"
+                  />
+                </Svg>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.wordmarkSlot} pointerEvents="none">
+            <KolmiWordmark size={28} color={kolmiColors.accent} />
+          </View>
+
+          <TouchableOpacity
+            onPress={() => router.push('/(tabs)/encounters')}
+            activeOpacity={0.7}
+            style={styles.headerIconButton}
+            hitSlop={10}
+            accessibilityLabel="Rencontres"
+            accessibilityRole="button"
+          >
+            <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+              <Rect x={4} y={6} width={16} height={3.2} rx={0.8} stroke={kolmiColors.text} strokeWidth={1.6} fill="none" />
+              <Rect x={4} y={11.2} width={16} height={3.2} rx={0.8} stroke={kolmiColors.text} strokeWidth={1.6} fill="none" />
+              <Rect x={4} y={16.4} width={16} height={3.2} rx={0.8} stroke={kolmiColors.text} strokeWidth={1.6} fill="none" />
+            </Svg>
           </TouchableOpacity>
         </View>
 
-        {state && (
-          <MatchmakerTimeline
-            state={state}
-            freshFromIndex={freshFromIndex}
-            onDecision={handleDecision}
-            onProfileTap={handleProfileTap}
-            onTimelineSettled={handleTimelineSettled}
-          />
-        )}
+        {/* Date du jour — ruban éditorial entre header et carte
+            matchmaker (« mercredi 27 mai » entre deux hairlines). */}
+        <View style={styles.dayDivider}>
+          <View style={styles.dayHairline} />
+          <Text style={styles.dayLabel}>{dayLabel}</Text>
+          <View style={styles.dayHairline} />
+        </View>
+
+        <ScrollView
+          contentContainerStyle={styles.feedContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Carte matchmaker — l'IA comme entité passive, pas comme
+              chat actif. Avatar à gauche, mot du jour à droite. */}
+          {state && (
+            <Animated.View
+              entering={FadeInUp.duration(kolmiMotion.duration.lg).easing(
+                kolmiMotion.easing.soft,
+              )}
+              style={styles.matchmakerCard}
+            >
+              <View style={styles.matchmakerAvatar}>
+                {/* Portrait line-art minimaliste — visage de profil
+                    légèrement abstrait, cream sur dark, style éditorial.
+                    Donne au matchmaker une présence sans tomber dans la
+                    photo réaliste. */}
+                <Svg width={32} height={32} viewBox="0 0 32 32" fill="none">
+                  {/* Cheveux / arc supérieur */}
+                  <Path
+                    d="M9 13.2 C9.5 7.8 14 6 16 6 C18.5 6 22 8 22.6 12.6"
+                    stroke="#FAF8F5"
+                    strokeWidth={1.3}
+                    strokeLinecap="round"
+                    fill="none"
+                  />
+                  {/* Tête (ovale) */}
+                  <Path
+                    d="M9.4 14.2 C9.4 11.6 11.8 9.6 16 9.6 C20.2 9.6 22.6 11.6 22.6 14.6 C22.6 18 20 20.4 16 20.4 C12 20.4 9.4 18 9.4 14.6 Z"
+                    stroke="#FAF8F5"
+                    strokeWidth={1.3}
+                    fill="none"
+                  />
+                  {/* Œil */}
+                  <Circle cx={18.3} cy={14.4} r={0.55} fill="#FAF8F5" />
+                  {/* Sourire discret */}
+                  <Path
+                    d="M15.8 17.3 Q17 18 18.4 17.3"
+                    stroke="#FAF8F5"
+                    strokeWidth={1.1}
+                    strokeLinecap="round"
+                    fill="none"
+                  />
+                  {/* Cou + col / épaules */}
+                  <Path
+                    d="M14 20.6 L14 22.6 C12 22.8 9 23.8 8.5 26.5"
+                    stroke="#FAF8F5"
+                    strokeWidth={1.3}
+                    strokeLinecap="round"
+                    fill="none"
+                  />
+                  <Path
+                    d="M18.4 20.6 L18.4 22.6 C20.4 22.8 23 23.8 23.5 26.5"
+                    stroke="#FAF8F5"
+                    strokeWidth={1.3}
+                    strokeLinecap="round"
+                    fill="none"
+                  />
+                </Svg>
+              </View>
+              <View style={styles.matchmakerBody}>
+                <View style={styles.matchmakerHeaderRow}>
+                  <Text style={styles.matchmakerName}>Le matchmaker</Text>
+                  {openingTime && (
+                    <Text style={styles.matchmakerTime}>{openingTime}</Text>
+                  )}
+                </View>
+                <Text style={styles.matchmakerText}>{openingText}</Text>
+              </View>
+            </Animated.View>
+          )}
+
+          {/* Section « Mes intros » — profils du jour non décidés. */}
+          {introProfiles.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>Mes intros</Text>
+              <View style={styles.list}>
+                {introProfiles.map((profile, i) => (
+                  <ProfileRow
+                    key={profile.id}
+                    profile={profile}
+                    index={i}
+                    onPress={() => handleProfileTap(profile.id)}
+                  />
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Section « Mes rencontres » — meetings actifs. */}
+          {activeMeetings.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>Mes rencontres</Text>
+              <View style={styles.list}>
+                {activeMeetings.map((meeting, i) => {
+                  const profile =
+                    profilesRef.current.find((p) => p.id === meeting.profileId) ??
+                    mockSelectedProfiles.find((p) => p.id === meeting.profileId)
+                  if (!profile) return null
+                  return (
+                    <MeetingRow
+                      key={meeting.id}
+                      profile={profile}
+                      meeting={meeting}
+                      index={i}
+                      onPress={() => {
+                        if (meeting.status === 'confirmed') {
+                          router.push(`/meeting/confirm/${meeting.id}`)
+                        } else if (
+                          meeting.status === 'accepted_waiting_slots' ||
+                          meeting.status === 'slots_submitted'
+                        ) {
+                          router.push(`/meeting/schedule/${meeting.id}`)
+                        } else {
+                          router.push(`/matches/${profile.id}`)
+                        }
+                      }}
+                    />
+                  )
+                })}
+              </View>
+            </View>
+          )}
+
+          {/* Empty state — le user a tout décidé et n'a pas de rencontre
+              en cours. Petit mot du matchmaker pour ne pas laisser de
+              vide. */}
+          {state &&
+            introProfiles.length === 0 &&
+            activeMeetings.length === 0 && (
+              <Animated.View
+                entering={FadeInUp.delay(120)
+                  .duration(kolmiMotion.duration.lg)
+                  .easing(kolmiMotion.easing.soft)}
+                style={styles.emptyState}
+              >
+                <Text style={styles.emptyKicker}>Plus tard</Text>
+                <Text style={styles.emptyTitle}>
+                  La sélection est complète pour aujourd'hui.
+                </Text>
+                <Text style={styles.emptyBody}>
+                  Le matchmaker reprend demain. En attendant, vous pouvez
+                  relire vos rencontres en cours.
+                </Text>
+              </Animated.View>
+            )}
+        </ScrollView>
 
         {/* Modal "rareté" */}
         <Modal
@@ -477,42 +698,224 @@ const styles = StyleSheet.create({
     paddingTop: kolmiSpace.sm,
     paddingBottom: kolmiSpace.xs,
   },
-  kicker: {
-    fontFamily: kolmiFonts.uiMedium,
-    fontSize: 10,
-    color: kolmiColors.textMuted,
-    letterSpacing: 2.6,
-    textTransform: 'uppercase',
+  headerIconButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  tokenIndicator: {
+  wordmarkSlot: {
+    // Le wordmark a beaucoup de padding interne (paddingTop = 0.45 *
+    // size pour gérer l'overhang du script). On compense avec un
+    // marginTop négatif pour centrer visuellement avec les boutons.
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -12,
+    marginBottom: -4,
+  },
+  avatarButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: kolmiColors.outline,
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarFallback: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: kolmiColors.surfaceSoft,
+  },
+
+  // ─── Ruban date sous le header ──────────────────────────────────────
+  dayDivider: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: kolmiSpace.sm,
+    paddingHorizontal: kolmiPaddingX,
+    paddingTop: kolmiSpace.xs,
+    paddingBottom: kolmiSpace.sm,
+  },
+  dayHairline: {
+    flex: 1,
+    height: 0.6,
+    backgroundColor: 'rgba(139,26,26,0.35)',
+  },
+  dayLabel: {
+    fontFamily: kolmiFonts.serifItalic,
+    fontSize: 14,
+    color: kolmiColors.textSecondary,
+    letterSpacing: 0.1,
+  },
+
+  // ─── Feed scrollable ────────────────────────────────────────────────
+  feedContent: {
+    paddingHorizontal: kolmiPaddingX,
+    paddingBottom: kolmiSpace.xxxl,
+    gap: kolmiSpace.xl,
+  },
+
+  // ─── Carte matchmaker — feel iOS notification ────────────────────────
+  // Fond clair surélevé, radius doux, hairline + ombre légère pour
+  // l'impression "un ami vient de m'écrire, je vois sa notif".
+  matchmakerCard: {
+    flexDirection: 'row',
+    gap: kolmiSpace.md,
+    alignItems: 'flex-start',
+    padding: kolmiSpace.md,
+    borderRadius: kolmiRadius.lg,
+    backgroundColor: '#FAF8F5',
+    borderWidth: 0.6,
+    borderColor: 'rgba(22,19,15,0.10)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  matchmakerAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#16130F',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  matchmakerBody: {
+    flex: 1,
     gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
   },
-  tokenIndicatorEmpty: {
-    opacity: 0.55,
+  matchmakerHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
   },
-  tokenDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: kolmiColors.accent,
-  },
-  tokenDotEmpty: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: kolmiColors.textMuted,
-  },
-  tokenCount: {
+  matchmakerName: {
     fontFamily: kolmiFonts.uiSemiBold,
     fontSize: 14,
     color: kolmiColors.text,
-    letterSpacing: 0.4,
+    letterSpacing: 0.2,
   },
-  tokenCountEmpty: {
+  matchmakerTime: {
+    fontFamily: kolmiFonts.ui,
+    fontSize: 11,
     color: kolmiColors.textMuted,
+    letterSpacing: 0.3,
+  },
+  matchmakerText: {
+    fontFamily: kolmiFonts.serifItalic,
+    fontSize: 16,
+    lineHeight: 22,
+    color: kolmiColors.textBody,
+  },
+
+  // ─── Sections "Mes intros" / "Mes rencontres" ───────────────────────
+  section: {
+    gap: kolmiSpace.sm,
+  },
+  sectionLabel: {
+    fontFamily: kolmiFonts.uiSemiBold,
+    fontSize: 11,
+    color: kolmiColors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1.6,
+  },
+  list: {
+    gap: kolmiSpace.sm,
+  },
+
+  // ─── Ligne profil (intro) ───────────────────────────────────────────
+  rowCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: kolmiSpace.md,
+    padding: kolmiSpace.sm,
+    borderRadius: kolmiRadius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(22,19,15,0.12)',
+    backgroundColor: '#FAF8F5',
+  },
+  rowAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    overflow: 'hidden',
+    backgroundColor: kolmiColors.surfaceSoft,
+  },
+  rowAvatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  rowBody: {
+    flex: 1,
+    gap: 2,
+  },
+  rowName: {
+    fontFamily: kolmiFonts.serif,
+    fontSize: fontScale(18),
+    color: kolmiColors.text,
+    letterSpacing: -0.2,
+    lineHeight: 22,
+  },
+  rowMeta: {
+    fontFamily: kolmiFonts.ui,
+    fontSize: 12,
+    color: kolmiColors.textBody,
+    lineHeight: 16,
+  },
+  rowMaison: {
+    fontFamily: kolmiFonts.serifItalic,
+    fontSize: 12,
+    color: kolmiColors.accent,
+    lineHeight: 16,
+  },
+  rowStatusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: kolmiRadius.pill,
+    borderWidth: 0.6,
+    borderColor: kolmiColors.outline,
+  },
+  rowStatusText: {
+    fontFamily: kolmiFonts.uiSemiBold,
+    fontSize: 10,
+    letterSpacing: 1.2,
+    color: kolmiColors.textSecondary,
+    textTransform: 'uppercase',
+  },
+
+  // ─── Empty state ────────────────────────────────────────────────────
+  emptyState: {
+    paddingVertical: kolmiSpace.xxl,
+    paddingHorizontal: kolmiSpace.sm,
+    gap: kolmiSpace.sm,
+  },
+  emptyKicker: {
+    fontFamily: kolmiFonts.uiSemiBold,
+    fontSize: 11,
+    color: kolmiColors.textMuted,
+    letterSpacing: 1.8,
+    textTransform: 'uppercase',
+  },
+  emptyTitle: {
+    fontFamily: kolmiFonts.serif,
+    fontSize: 22,
+    color: kolmiColors.text,
+    letterSpacing: -0.3,
+    lineHeight: 28,
+  },
+  emptyBody: {
+    fontFamily: kolmiFonts.serifItalic,
+    fontSize: 14,
+    color: kolmiColors.textBody,
+    lineHeight: 20,
   },
 
   // Modal "rareté"
@@ -625,3 +1028,172 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
 })
+
+// ─── Helpers ──────────────────────────────────────────────────────────
+
+const FRENCH_DAYS = [
+  'dimanche',
+  'lundi',
+  'mardi',
+  'mercredi',
+  'jeudi',
+  'vendredi',
+  'samedi',
+]
+const FRENCH_MONTHS = [
+  'janvier',
+  'février',
+  'mars',
+  'avril',
+  'mai',
+  'juin',
+  'juillet',
+  'août',
+  'septembre',
+  'octobre',
+  'novembre',
+  'décembre',
+]
+
+function frenchDateLabel(d: Date): string {
+  return `${FRENCH_DAYS[d.getDay()]} ${d.getDate()} ${FRENCH_MONTHS[d.getMonth()]}`
+}
+
+function formatHourMinute(iso: string | undefined): string | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return null
+  const h = String(d.getHours()).padStart(2, '0')
+  const m = String(d.getMinutes()).padStart(2, '0')
+  return `${h}:${m}`
+}
+
+// ─── Sous-composants : lignes du feed ─────────────────────────────────
+
+type SelectedProfile = (typeof mockSelectedProfiles)[number]
+
+function ProfileRow({
+  profile,
+  index,
+  onPress,
+}: {
+  profile: SelectedProfile
+  index: number
+  onPress: () => void
+}) {
+  const photo = profile.photoUrls?.[0] ?? profile.photoUrl
+  return (
+    <Animated.View
+      entering={FadeInUp.delay(staggerDelay(index, 60))
+        .duration(kolmiMotion.duration.md)
+        .easing(kolmiMotion.easing.soft)}
+    >
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.85}
+        style={styles.rowCard}
+        accessibilityRole="button"
+        accessibilityLabel={`Découvrir ${profile.firstName}`}
+      >
+        <View style={styles.rowAvatar}>
+          {photo ? (
+            <Image
+              source={{ uri: photo }}
+              style={styles.rowAvatarImage}
+              contentFit="cover"
+              transition={200}
+            />
+          ) : null}
+        </View>
+        <View style={styles.rowBody}>
+          <Text style={styles.rowName} numberOfLines={1}>
+            {profile.firstName}, {profile.age}
+          </Text>
+          <Text style={styles.rowMaison} numberOfLines={1}>
+            {profile.dnaLabel}
+          </Text>
+          {(profile.occupation || profile.city) && (
+            <Text style={styles.rowMeta} numberOfLines={1}>
+              {[profile.occupation, profile.city].filter(Boolean).join(' · ')}
+            </Text>
+          )}
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  )
+}
+
+function MeetingRow({
+  profile,
+  meeting,
+  index,
+  onPress,
+}: {
+  profile: SelectedProfile
+  meeting: Meeting
+  index: number
+  onPress: () => void
+}) {
+  const photo = profile.photoUrls?.[0] ?? profile.photoUrl
+  const statusLabel = meetingStatusLabel(meeting.status)
+  return (
+    <Animated.View
+      entering={FadeInUp.delay(staggerDelay(index, 60))
+        .duration(kolmiMotion.duration.md)
+        .easing(kolmiMotion.easing.soft)}
+    >
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.85}
+        style={styles.rowCard}
+        accessibilityRole="button"
+        accessibilityLabel={`Rencontre avec ${profile.firstName} — ${statusLabel}`}
+      >
+        <View style={styles.rowAvatar}>
+          {photo ? (
+            <Image
+              source={{ uri: photo }}
+              style={styles.rowAvatarImage}
+              contentFit="cover"
+              transition={200}
+            />
+          ) : null}
+        </View>
+        <View style={styles.rowBody}>
+          <Text style={styles.rowName} numberOfLines={1}>
+            {profile.firstName}, {profile.age}
+          </Text>
+          <Text style={styles.rowMaison} numberOfLines={1}>
+            {profile.dnaLabel}
+          </Text>
+        </View>
+        <View style={styles.rowStatusPill}>
+          <Text style={styles.rowStatusText}>{statusLabel}</Text>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  )
+}
+
+function meetingStatusLabel(status: Meeting['status']): string {
+  switch (status) {
+    case 'requested_by_me':
+      return 'Demandé'
+    case 'waiting_for_other':
+      return 'En attente'
+    case 'accepted_waiting_slots':
+      return 'Choisir créneaux'
+    case 'slots_submitted':
+      return 'Proposé'
+    case 'confirmed':
+      return 'Confirmé'
+    case 'completed':
+      return 'Terminé'
+    case 'declined':
+      return 'Décliné'
+    case 'expired':
+      return 'Expiré'
+    default:
+      return status
+  }
+}

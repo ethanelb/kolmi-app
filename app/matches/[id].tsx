@@ -30,10 +30,11 @@ import {
   kolmiPaddingX,
   kolmiRadius,
   kolmiSpace,
+  fontScale,
 } from '@/constants/kolmiTheme'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import ProfilePhotoPlaceholder from '@/components/kolmi/ProfilePhotoPlaceholder'
-import { getSelectedProfileById } from '@/data/mockSelectedProfiles'
+import { getProfileByIdSync as getSelectedProfileById } from '@/lib/kolmi/fetchProfiles'
 import { passProfile } from '@/lib/kolmi/storage'
 import { safePersist } from '@/lib/kolmi/safePersist'
 import { kolmiMotion, staggerDelay } from '@/lib/kolmi/motion'
@@ -128,7 +129,7 @@ export default function MatchDetailScreen() {
             <Text
               style={{
                 fontFamily: kolmiFonts.serif,
-                fontSize: 36,
+                fontSize: fontScale(36),
                 color: kolmiColors.text,
                 letterSpacing: -0.4,
                 lineHeight: 40,
@@ -701,7 +702,7 @@ function ProfileUnavailable({
           <Text
             style={{
               fontFamily: kolmiFonts.serif,
-              fontSize: 28,
+              fontSize: fontScale(28),
               color: kolmiColors.text,
               textAlign: 'center',
               letterSpacing: -0.4,

@@ -15,6 +15,7 @@ import {
   kolmiRadius,
   kolmiFonts,
   kolmiPaddingX,
+  fontScale,
 } from '@/constants/kolmiTheme'
 import SignupHeader from '@/components/kolmi/SignupHeader'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
@@ -26,9 +27,9 @@ import { safePersist } from '@/lib/kolmi/safePersist'
 import { select, tapMedium } from '@/lib/kolmi/haptics'
 
 const SIGNUP_TOTAL_STEPS = 10
-const MIN_AGE = 18
+const MIN_AGE = 21
 const MAX_AGE = 65
-const MIN_GAP = 5
+const MIN_GAP = 3
 
 const TRACK_HEIGHT = 4
 const THUMB_SIZE = 28
@@ -42,7 +43,8 @@ export default function SeekingScreen() {
   useEffect(() => {
     getKolmiPreferences().then((prefs) => {
       if (!prefs) return
-      setMinAge(prefs.minAge)
+      // Clamp les anciennes prefs qui pourraient avoir minAge < 21 (ancien minimum).
+      setMinAge(Math.max(MIN_AGE, prefs.minAge))
       setMaxAge(prefs.maxAge)
     })
   }, [])
@@ -227,7 +229,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 36,
+    fontSize: fontScale(36),
     color: kolmiColors.text,
     lineHeight: 42,
     letterSpacing: -0.4,
@@ -250,7 +252,7 @@ const styles = StyleSheet.create({
   },
   value: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 32,
+    fontSize: fontScale(32),
     color: kolmiColors.accent,
     letterSpacing: -0.4,
     marginVertical: kolmiSpace.xs,

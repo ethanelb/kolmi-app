@@ -27,8 +27,7 @@ export async function pickProfilePhoto(): Promise<string | null> {
   try {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [4, 5],
+      allowsEditing: false,
       quality: 0.85,
     })
     if (result.canceled) return null
@@ -40,5 +39,30 @@ export async function pickProfilePhoto(): Promise<string | null> {
       "La sélection de photo a échoué. Réessaie dans un instant.",
     )
     return null
+  }
+}
+
+// Variante multi-sélection : retourne jusqu'à `limit` URIs. Pas de cadrage
+// (iOS / Android n'autorisent l'édition qu'en sélection unique de toute façon).
+export async function pickProfilePhotos(limit: number): Promise<string[]> {
+  const ok = await ensurePhotoLibraryPermission()
+  if (!ok) return []
+  if (limit <= 0) return []
+  try {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: true,
+      selectionLimit: limit,
+      quality: 0.85,
+    })
+    if (result.canceled) return []
+    return (result.assets ?? []).map((a) => a.uri).filter(Boolean)
+  } catch (err) {
+    console.warn('[kolmi] image picker failed', err)
+    Alert.alert(
+      'Sélection impossible',
+      "La sélection de photos a échoué. Réessaie dans un instant.",
+    )
+    return []
   }
 }

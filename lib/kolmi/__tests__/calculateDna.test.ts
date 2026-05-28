@@ -27,14 +27,14 @@ function answerByLabel(qIdx: number, label: string): KolmiAnswer {
 describe('mapAxisProfileToCategory', () => {
   // Les 8 combinaisons mappent une à une vers les 8 Maisons.
   it.each<[AxisProfile, DnaCategoryId]>([
-    [{ intensity: 'ardent', rhythm: 'fast', openness: 'open' }, 'cinabre'],
-    [{ intensity: 'ardent', rhythm: 'fast', openness: 'selective' }, 'carmen'],
-    [{ intensity: 'ardent', rhythm: 'slow', openness: 'open' }, 'saudade'],
+    [{ intensity: 'ardent', rhythm: 'fast', openness: 'open' }, 'gigi'],
+    [{ intensity: 'ardent', rhythm: 'fast', openness: 'selective' }, 'amare'],
+    [{ intensity: 'ardent', rhythm: 'slow', openness: 'open' }, 'solea'],
     [{ intensity: 'ardent', rhythm: 'slow', openness: 'selective' }, 'terracotta'],
-    [{ intensity: 'calm', rhythm: 'fast', openness: 'open' }, 'montparnasse'],
-    [{ intensity: 'calm', rhythm: 'fast', openness: 'selective' }, 'bauhaus'],
-    [{ intensity: 'calm', rhythm: 'slow', openness: 'open' }, 'bloomsbury'],
-    [{ intensity: 'calm', rhythm: 'slow', openness: 'selective' }, 'indigo'],
+    [{ intensity: 'calm', rhythm: 'fast', openness: 'open' }, 'fiora'],
+    [{ intensity: 'calm', rhythm: 'fast', openness: 'selective' }, 'lumi'],
+    [{ intensity: 'calm', rhythm: 'slow', openness: 'open' }, 'calia'],
+    [{ intensity: 'calm', rhythm: 'slow', openness: 'selective' }, 'vesna'],
   ])('%j → %s', (profile, expected) => {
     expect(mapAxisProfileToCategory(profile)).toBe(expected)
   })
@@ -118,7 +118,7 @@ describe('calculateKolmiDna — exemple du spec', () => {
   //               Q4 Pas vraiment, Q5 Oui, Q6 Plutôt → Lent
   //               Q7 Pas vraiment, Q8 Oui → Sélectif
   //               → Maison Terracotta
-  it('produit Maison Terracotta sur le scénario fourni dans le spec', () => {
+  it('produit Maison Terracotta sur le scénario fourni du spec', () => {
     const answers: KolmiAnswer[] = [
       answerByLabel(0, 'Plutôt'),
       answerByLabel(1, 'Pas vraiment'),
@@ -137,12 +137,12 @@ describe('calculateKolmiDna — exemple du spec', () => {
     expect(result.scores.openness).toBeLessThan(0)
   })
 
-  it('toutes "Je ne sais pas" → fallback vers Indigo (3 pôles doux)', () => {
+  it('toutes "Je ne sais pas" → fallback vers Vesna (3 pôles doux)', () => {
     const answers = kolmiQuestions.map((_, i) =>
       answerByLabel(i, 'Je ne sais pas'),
     )
     const result = calculateKolmiDna(answers)
-    expect(result.categoryId).toBe('indigo')
+    expect(result.categoryId).toBe('vesna')
   })
 
   it('toutes "Oui" sur questions ardent/fast/open + sélectif → cohérence', () => {
@@ -160,28 +160,28 @@ describe('calculateKolmiDna — exemple du spec', () => {
       answerByLabel(7, 'Oui'),       // selective +2
     ]
     const result = calculateKolmiDna(answers)
-    expect(result.categoryId).toBe('carmen')
+    expect(result.categoryId).toBe('amare')
   })
 
   it('toutes les 8 Maisons sont catégorisables et listées dans dnaCategories', () => {
     const ids: DnaCategoryId[] = [
-      'cinabre',
-      'carmen',
-      'saudade',
+      'gigi',
+      'amare',
+      'solea',
       'terracotta',
-      'montparnasse',
-      'bauhaus',
-      'bloomsbury',
-      'indigo',
+      'fiora',
+      'lumi',
+      'calia',
+      'vesna',
     ]
     for (const id of ids) {
       expect(dnaCategories[id]).toBeDefined()
     }
   })
 
-  it('réponses vides → résultat valide (toutes-zero → indigo)', () => {
+  it('réponses vides → résultat valide (toutes-zero → vesna)', () => {
     const result = calculateKolmiDna([])
     expect(dnaCategories[result.categoryId]).toBeDefined()
-    expect(result.categoryId).toBe('indigo')
+    expect(result.categoryId).toBe('vesna')
   })
 })

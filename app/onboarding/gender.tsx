@@ -9,6 +9,7 @@ import {
   kolmiRadius,
   kolmiFonts,
   kolmiPaddingX,
+  fontScale,
 } from '@/constants/kolmiTheme'
 import SignupHeader from '@/components/kolmi/SignupHeader'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
@@ -126,7 +127,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 36,
+    fontSize: fontScale(36),
     color: kolmiColors.text,
     lineHeight: 42,
     letterSpacing: -0.4,

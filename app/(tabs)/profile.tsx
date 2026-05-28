@@ -4,18 +4,21 @@ import { Image } from 'expo-image'
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'
+import Svg, { Path } from 'react-native-svg'
 import {
   kolmiColors,
   kolmiFonts,
   kolmiPaddingX,
   kolmiRadius,
   kolmiSpace,
+  fontScale,
 } from '@/constants/kolmiTheme'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import AnimatedCounter from '@/components/kolmi/AnimatedCounter'
 import BreathingText from '@/components/kolmi/BreathingText'
 import SkeletonBlock from '@/components/kolmi/SkeletonBlock'
 import {
+  clearKolmiAnswers,
   getKolmiDnaResult,
   getKolmiPreferences,
   getKolmiProfile,
@@ -28,6 +31,8 @@ import {
 } from '@/lib/kolmi/storage'
 import { kolmiMotion, staggerDelay } from '@/lib/kolmi/motion'
 import type { KolmiDnaResult } from '@/lib/kolmi/types'
+import { useSession } from '@/lib/kolmi/session'
+import { supabase } from '@/lib/supabase'
 
 export default function ProfileTabScreen() {
   const router = useRouter()
@@ -38,6 +43,10 @@ export default function ProfileTabScreen() {
   const [subscribed, setSubscribed] = useState<boolean>(false)
   const [purchased, setPurchased] = useState<boolean>(false)
   const [isLoading, setIsLoading] = useState<boolean>(true)
+  const { user } = useSession()
+  // is_anonymous est défini quand le user vient d'un signInAnonymously.
+  // Une fois lié à un email, ce flag bascule à false (ou disparaît).
+  const isAnonymous = user?.is_anonymous ?? true
 
   const refresh = React.useCallback(async () => {
     const [
@@ -84,6 +93,7 @@ export default function ProfileTabScreen() {
           text: 'Se déconnecter',
           style: 'destructive',
           onPress: async () => {
+            await supabase.auth.signOut()
             await resetKolmiState()
             router.replace('/')
           },
@@ -114,10 +124,102 @@ export default function ProfileTabScreen() {
     <View style={{ flex: 1, backgroundColor: kolmiColors.bg }}>
       <GrainOverlay />
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+        {/* Header — flèche retour à gauche, pill tokens au centre
+            (déplacée depuis la home), spacer à droite pour équilibrer. */}
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingHorizontal: kolmiPaddingX,
+            paddingTop: kolmiSpace.sm,
+            paddingBottom: kolmiSpace.xs,
+          }}
+        >
+          <TouchableOpacity
+            onPress={() => router.navigate('/(tabs)/conversation')}
+            activeOpacity={0.7}
+            style={{
+              width: 36,
+              height: 36,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginLeft: -6,
+            }}
+            hitSlop={10}
+            accessibilityLabel="Retour à l'accueil"
+            accessibilityRole="button"
+          >
+            <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+              <Path
+                d="M14.5 5.5L7.5 12l7 6.5"
+                stroke={kolmiColors.text}
+                strokeWidth={1.6}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+              />
+            </Svg>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => router.push('/premium')}
+            activeOpacity={0.7}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 6,
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              opacity: tokens === 0 ? 0.55 : 1,
+            }}
+            hitSlop={8}
+            accessibilityLabel={
+              tokens > 0
+                ? `${tokens} tokens disponibles, voir les recharges`
+                : 'Aucun token, voir les recharges'
+            }
+            accessibilityRole="button"
+          >
+            <View
+              style={
+                tokens === 0
+                  ? {
+                      width: 6,
+                      height: 6,
+                      borderRadius: 3,
+                      borderWidth: 1,
+                      borderColor: kolmiColors.textMuted,
+                    }
+                  : {
+                      width: 6,
+                      height: 6,
+                      borderRadius: 3,
+                      backgroundColor: kolmiColors.accent,
+                    }
+              }
+            />
+            <Text
+              style={{
+                fontFamily: kolmiFonts.uiSemiBold,
+                fontSize: 14,
+                color: tokens === 0 ? kolmiColors.textMuted : kolmiColors.text,
+                letterSpacing: 0.4,
+              }}
+            >
+              {tokens}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Spacer 36x36 pour centrer optiquement le pill tokens — mirroir
+              du back-arrow à gauche. */}
+          <View style={{ width: 36, height: 36 }} />
+        </View>
+
         <ScrollView
           contentContainerStyle={{
             paddingHorizontal: kolmiPaddingX,
-            paddingTop: kolmiSpace.md,
+            paddingTop: kolmiSpace.xs,
             paddingBottom: kolmiSpace.xxxl,
             gap: kolmiSpace.xl,
           }}
@@ -150,7 +252,7 @@ export default function ProfileTabScreen() {
                 <BreathingText
                   style={{
                     fontFamily: kolmiFonts.serif,
-                    fontSize: 28,
+                    fontSize: fontScale(28),
                     color: kolmiColors.text,
                     letterSpacing: -0.3,
                   }}
@@ -179,7 +281,26 @@ export default function ProfileTabScreen() {
               />
               <ActionRow
                 label="Refaire le test"
-                onPress={() => router.replace('/matchmaker')}
+                onPress={() => {
+                  Alert.alert(
+                    'Refaire le test',
+                    'Vos 8 réponses actuelles seront effacées pour refaire le test. Votre Maison actuelle reste affichée tant que le nouveau test n’est pas terminé.',
+                    [
+                      { text: 'Annuler', style: 'cancel' },
+                      {
+                        text: 'Refaire',
+                        style: 'destructive',
+                        onPress: async () => {
+                          // Sans ce wipe, MatchmakerChat détecte 8 réponses
+                          // valides et bounce direct vers /matchmaker/result
+                          // — l'utilisateur ne voit jamais une question.
+                          await clearKolmiAnswers()
+                          router.replace('/matchmaker')
+                        },
+                      },
+                    ],
+                  )
+                }}
               />
             </Section>
           )}
@@ -197,7 +318,7 @@ export default function ProfileTabScreen() {
                 value={tokens}
                 style={{
                   fontFamily: kolmiFonts.serif,
-                  fontSize: 40,
+                  fontSize: fontScale(40),
                   color: kolmiColors.accent,
                   letterSpacing: -0.5,
                 }}
@@ -318,6 +439,18 @@ export default function ProfileTabScreen() {
 
           {/* Compte */}
           <Section title="Compte" index={5}>
+            {isAnonymous ? (
+              <ActionRow
+                label="Sécuriser mon compte"
+                onPress={() => router.push('/auth/email')}
+              />
+            ) : (
+              <ActionRow
+                label={user?.email ? `Connecté en tant que ${user.email}` : 'Compte sécurisé'}
+                onPress={() => {}}
+                disabled
+              />
+            )}
             <ActionRow
               label="Confidentialité (bientôt)"
               onPress={() => {}}
@@ -396,7 +529,7 @@ function SignatureCard({
           <Text
             style={{
               fontFamily: kolmiFonts.serif,
-              fontSize: 28,
+              fontSize: fontScale(28),
               color: kolmiColors.textMuted,
             }}
           >
@@ -420,7 +553,7 @@ function SignatureCard({
         <Text
           style={{
             fontFamily: kolmiFonts.serif,
-            fontSize: 32,
+            fontSize: fontScale(32),
             color: kolmiColors.text,
             lineHeight: 36,
             letterSpacing: -0.4,
