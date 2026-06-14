@@ -9,19 +9,20 @@ import {
   kolmiRadius,
   kolmiFonts,
   kolmiPaddingX,
+  fontScale,
 } from '@/constants/kolmiTheme'
 import SignupHeader from '@/components/kolmi/SignupHeader'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import { select, tapMedium } from '@/lib/kolmi/haptics'
 import { getKolmiProfile, saveKolmiProfile } from '@/lib/kolmi/storage'
+import { safePersist } from '@/lib/kolmi/safePersist'
 
-const SIGNUP_TOTAL_STEPS = 11
+const SIGNUP_TOTAL_STEPS = 10
 
 const OPTIONS = [
   { id: 'men', label: 'Des hommes' },
   { id: 'women', label: 'Des femmes' },
-  { id: 'everyone', label: 'Tout le monde' },
-  { id: 'nonbinary', label: 'Des personnes non-binaires' },
+  { id: 'other', label: 'Autre' },
 ]
 
 export default function OrientationScreen() {
@@ -97,11 +98,13 @@ export default function OrientationScreen() {
           <TouchableOpacity
             style={[styles.cta, !isValid && styles.ctaDisabled]}
             onPress={async () => {
-              if (isValid) {
-                tapMedium()
-                await saveKolmiProfile({ orientations: selected })
-                router.push('/onboarding/height')
-              }
+              if (!isValid) return
+              tapMedium()
+              const ok = await safePersist(() =>
+                saveKolmiProfile({ orientations: selected }),
+              )
+              if (!ok) return
+              router.push('/onboarding/seeking')
             }}
             activeOpacity={isValid ? 0.85 : 1}
           >
@@ -125,7 +128,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 36,
+    fontSize: fontScale(36),
     color: kolmiColors.text,
     lineHeight: 42,
     letterSpacing: -0.4,

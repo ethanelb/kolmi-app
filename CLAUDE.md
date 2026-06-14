@@ -1,47 +1,50 @@
 # KOLMI app — context for future sessions
 
-French AI-matchmaking iOS app. Expo + React Native + TypeScript, expo-router for navigation. Supabase + Anthropic SDK pre-wired but **not yet used** (storage is local AsyncStorage in v1).
+French AI-matchmaking iOS app. Expo + React Native + TypeScript, expo-router for navigation. **Supabase est câblé** (auth anonyme au boot, sync profil/tokens/meetings, upload photos Storage). **GIGI** — le matchmaker IA — est propulsé par Claude via une **Edge Function** (`supabase/functions/matchmaker-chat`, modèle `claude-haiku-4-5`). La clé `ANTHROPIC_API_KEY` vit dans les secrets Supabase, **jamais dans le bundle** ; le client appelle la fonction via `lib/kolmi/matchmakerChat.ts`.
 
-## Product model — concierge, no chat
+## Product model — GIGI, matchmaker IA
 
-KOLMI is a **matchmaker concierge** app. The IA matchmaker presents curated profiles, the user spends tokens to request a meeting, and the app coordinates acceptance, availability, slot, and venue.
+KOLMI est un **matchmaker IA incarné par GIGI**. GIGI apprend à connaître l'utilisateur (chat), puis lui propose et organise des rencontres avec d'autres utilisateurs. L'utilisateur dépense 1 token pour demander une rencontre ; l'app coordonne acceptation, créneaux, lieu.
 
-> **KOLMI has no direct user-to-user chat. Meetings are coordinated by the app through requests, tokens, availability, and venue assignment.**
+> **Refonte 2026-06 (cette branche)** : le **test de personnalité (8 questions)** et la **sélection de Maisons** ont été **supprimés** du parcours. GIGI (Claude) remplace le questionnaire. Le modèle de données DNA/Maisons reste dans le code (`data/kolmiDna.ts`, `matching.ts`, `conversationEngine.ts`) mais est **dormant** : sans test, `getKolmiDnaResult()` renvoie toujours `null` → `rankProfilesByAffinity(profiles, null)` retourne les profils sans filtrer.
 
-Hard rules — do not violate:
-- No `Message`, `Chat`, `DM`, `Conversation` UI between users.
-- No `/conversations` route, no free-text messaging.
-- No "swipe", no VoiceMatch heritage.
-- The word `conversation` is allowed only at the human/IRL sense (e.g. real-life meeting talk), never as a chat screen label.
-- Anthropic / Supabase SDKs are imported in `package.json` but **not** wired client-side — see `lib/api.ts`. All AI calls must go through a server-side function later.
+GIGI :
+- **Onglet central « conversation »** = accueil éditorial : une bulle GIGI (un **appel de phare** court et contextuel — découverte / rdv passé / en attente) + la liste « Mes intros ». Tap sur la bulle → écran chat.
+- **Chat** (`app/matchmaker-chat/`) = vraie discussion aller-retour user ↔ GIGI (Claude), avec historique. Au tout premier contact, GIGI se présente ; ensuite ce sont des relances. GIGI reste focalisée matchmaking (pas de small talk), ne parle de tokens qu'au moment d'un RDV, ne mentionne jamais de « Maison ».
+- Avatar GIGI : `assets/gigi-avatar.png` (mascotte), clippé en rond.
+
+Règles dures — ne jamais transgresser :
+- **Pas de chat user-à-user.** Le chat avec GIGI (user ↔ IA) est OK ; un chat/DM entre deux users ne l'est pas.
+- Le mot **`conversation`** dans le code désigne **la timeline éditoriale du tab central**, pas un chat entre users.
+- Pas de "swipe", pas d'héritage VoiceMatch.
 
 ## Run
 
 ```sh
-npx expo start --ios --localhost   # localhost flag is important — LAN mode breaks
-                                   # the simulator → Metro connection on this Mac.
+npx expo start --ios --localhost   # localhost flag obligatoire — le mode LAN
+                                   # casse la connexion simulateur → Metro sur ce Mac.
 ```
 
-The booted iOS simulator is named **iPhone 17 Kolmi** (UDID `A24D05B3-6A2B-4A1F-B321-6038797BB3F8`). If `expo start --ios` opens a different one, boot Kolmi manually first: `xcrun simctl boot A24D05B3-6A2B-4A1F-B321-6038797BB3F8 && open -a Simulator`.
+Simulateur dédié : **iPhone 17 Kolmi** (UDID `A24D05B3-6A2B-4A1F-B321-6038797BB3F8`). Si `expo start --ios` ouvre le mauvais, le booter à la main :
+`xcrun simctl boot A24D05B3-6A2B-4A1F-B321-6038797BB3F8 && open -a Simulator`.
 
-For testing on a physical device, use `npx expo start --tunnel` and either scan the QR (Expo Go) or `qrencode -t ANSIUTF8 "exp://<tunnel>.exp.direct"`.
+Test sur device physique : `npx expo start --tunnel`, scanner le QR (Expo Go) ou `qrencode -t ANSIUTF8 "exp://<tunnel>.exp.direct"`.
 
 ## Visual design system
 
-Cream paper editorial. Source of truth: `constants/kolmiTheme.ts`. **Use these tokens, never hardcoded values** (except inside the matchmaker chat which uses `#16130F`/`#FAF8F5`/`#E2CBA8` literals per the standalone-3 spec).
+Cream paper editorial. Source de vérité : `constants/kolmiTheme.ts`. **Toujours passer par les tokens**, jamais de valeurs hardcodées.
 
-- **Colors** — bg cream `#F5F1EA`, text `#0A0A0A` / dark text `#16130F`, light text `#FAF8F5`, accent bordeaux `#8B1A1A`, outline `rgba(26,26,26,0.2)`, surface soft `#E8E2D6`. Never blue / purple / violet.
+- **Couleurs** (palette éclaircie 2026-06) — bg cream `#FBF8F3`, bgDeep `#F4EFE7`, text `#0A0A0A`, accent bordeaux `#8B1A1A` (couleur du logo, utilisée pour les labels de section, hairlines, CTA), `accentSoft` `rgba(139,26,26,0.08)`, outline `rgba(26,26,26,0.2)`, surface soft `#EFE8DB`. Jamais de bleu / violet.
 - **Fonts** —
-  - `kolmiFonts.serif` (DM Serif Display 400) for titles
-  - `kolmiFonts.serifItalic` for in-quote prompts and italic captions
-  - `kolmiFonts.script` (Caveat 600) for the "kolmi" wordmark
-  - `kolmiFonts.ui` / `uiMedium` / `uiSemiBold` (Inter) for body, labels, CTA text
-  - `kolmiFonts.serifLegacy` / `serifLegacyRegular` (Fraunces) only for date wheel + height drum
-  - `'Georgia'` (system) for the matchmaker avatar "A" glyph
-- **Layout** — `kolmiPaddingX = 24` is the standard horizontal padding. Buttons are 56px tall, `borderRadius: kolmiRadius.pill`.
-- **Grain** — every screen wraps content in a root `View` with `<GrainOverlay />` as the first child for the paper texture.
+  - `kolmiFonts.serif` (DM Serif Display 400) pour les titres
+  - `kolmiFonts.serifItalic` pour les bulles GIGI, prompts et captions italiques
+  - `kolmiFonts.wordmark` (Homemade Apple) pour le wordmark "kolmi"
+  - `kolmiFonts.ui` / `uiMedium` / `uiSemiBold` (Inter) pour body, labels, CTA
+  - `kolmiFonts.serifLegacy` (Fraunces) pour wheel date / drum hauteur uniquement
+- **Layout** — `kolmiPaddingX = 24` horizontal. Boutons 56px, `borderRadius: kolmiRadius.pill`.
+- **Grain** — chaque écran wrappe son content dans un root `View` avec `<GrainOverlay />` en premier enfant.
 
-Screen pattern:
+Pattern d'écran :
 
 ```tsx
 <View style={{ flex: 1, backgroundColor: kolmiColors.bg }}>
@@ -56,126 +59,202 @@ Screen pattern:
 
 ```
 app/
-  index.tsx                        → reads progress + dna_result, redirects to:
-                                     /onboarding/welcome | /matchmaker | /(tabs)
-  _layout.tsx                      → font loader + Stack
+  index.tsx                        → lit progress, redirige vers :
+                                     /onboarding/welcome | /(tabs)/conversation
+                                     (n'exige plus de DNA — le test est supprimé)
+  _layout.tsx                      → fonts + bootstrapSession() + fetchMaisons()
+                                     + push token + handler notifications
+
   onboarding/
     _layout.tsx
-    welcome.tsx                    (entry)
-    phone.tsx → verify.tsx → birthday.tsx → name.tsx → gender.tsx →
-    orientation.tsx → height.tsx → lifestyle.tsx → photos.tsx →
-    vocal.tsx → preferences.tsx
-                                   preferences ends with:
+    welcome.tsx                    → Apple / Google buttons (Supabase Auth pas
+                                     encore branché — TODO marqué dans le code)
+    name.tsx → birthday.tsx → gender.tsx → orientation.tsx → seeking.tsx →
+    height.tsx → origin.tsx → religion.tsx → education.tsx → occupation.tsx →
+    children.tsx → localisation.tsx → photos.tsx → selfie.tsx →
+    notifications.tsx → ready.tsx
+                                   ready.tsx : manifeste animé, PAS de bouton —
+                                     l'écran « kolmi » descend en fondu ~2 s puis
+                                     auto-transition. Termine par :
                                      await saveKolmiProgress({ hasCompletedBaseOnboarding: true })
-                                     router.replace('/matchmaker')
-  matchmaker/
-    index.tsx                      → renders <MatchmakerChat /> (the matchmaker
-                                     QUIZ — a guided question flow, not a chat
-                                     between users)
-    result.tsx                     → DNA result + "Découvrir mes profils" → /(tabs)
+                                     router.replace('/(tabs)/conversation')
+
+  auth/                            → flux email (modal). Plus lié depuis le profil
+    email.tsx / verify.tsx           (bouton « Sécuriser » retiré), conservé pour
+                                     un futur rebranchement.
+
+  matchmaker-chat/
+    index.tsx                      → chat aller-retour user ↔ GIGI (Claude, via
+                                     lib/kolmi/matchmakerChat → Edge Function).
+                                     Seedé avec l'appel de phare de la conversation.
+                                     ⚠ chat avec l'IA, JAMAIS user-à-user.
+
   (tabs)/
-    _layout.tsx                    → 4 tabs: Sélection / Découvrir / Rendez-vous / Profil
-    index.tsx                      → Sélection : 3-5 profils du jour, "Pas pour moi"
-                                     persiste (passProfile)
-    discover.tsx                   → Découvrir : 3 sections mutuellement exclusives
-    dates.tsx                      → Rendez-vous : meetings groupés par bucket
-    profile.tsx                    → Dashboard : Maison, tokens, profil, prefs, compte
-  matches/[id].tsx                 → fiche profil détaillée + CTA "Demander une
-                                     rencontre" / "Pas pour moi"
+    _layout.tsx                    → tabs. `index` redirige les vieux deeplinks.
+    conversation.tsx               → accueil éditorial (cœur de l'app) : bulle GIGI
+                                     (appel de phare contextuel via matchmakerChat)
+                                     + « Mes intros » + décisions inline. Header :
+                                     avatar profil (gauche) · wordmark · bouton
+                                     PARTAGE app (droite, Share natif).
+    encounters.tsx                 → rencontres groupées par bucket (statuts).
+    profile.tsx                    → tokens, profil, prefs, compte (épuré : plus
+                                     de pill tokens header, ni « Membre · KOLMI »,
+                                     ni valeur de prefs).
+
+  matches/[id].tsx                 → fiche profil détaillée + CTA "Demander
+                                     une rencontre" / "Pas pour moi".
+
   meeting/
-    request/[id].tsx               → confirme la demande + débit token (saveMeeting
-                                     d'abord, spendToken ensuite, rollback si échec)
-    schedule/[id].tsx              → choix 2-3 créneaux ; passe à status='confirmed'
-                                     avec confirmedSlot + venueId mock
+    request/[id].tsx               → confirme la demande, débit token, planifie
+                                     la simulation côté "autre" (mockBackend).
+    schedule/[id].tsx              → choix 2-3 créneaux + lieu → status='confirmed'.
     confirm/[id].tsx               → fiche RDV confirmée (slot + venue + mot du
-                                     matchmaker)
-  premium/index.tsx                → 3 packs de tokens — bêta privée, achat simulé
-                                     (aucun paiement réel, addTokens local)
-  profile.tsx                      → édition profil détaillé (prénom + photos +
-                                     style de vie)
+                                     matchmaker).
+    feedback/[id].tsx              → après le RDV : "on se revoit / on en reste
+                                     là". Match mutuel si oui des deux côtés.
+
+  premium/index.tsx                → segmented control : Packs (15/39/100€) /
+                                     Abonnement (60€/mois, 5 tokens, profils
+                                     illimités). Achat simulé (pas de paiement).
+
+  profile/
+    edit-birthday.tsx · edit-gender.tsx · edit-orientation.tsx ·
+    edit-photos.tsx · edit-preferences.tsx
 ```
+
+**Supprimés au passage v2 → v3 (refonte 2026-06, suppression test/Maisons)** : `app/matchmaker/` (index + result), `app/maisons/`, `lib/kolmi/calculateDna.ts` (+ test) · composants `MatchmakerChat`, `AnswerOptions`, `DnaReveal`, `MaisonGlyph`, `ChatBubble`, `MatchmakerGreeting`, `MatchmakerTimeline`, `ChapterProgress`, `PhaseDivider`, `PressableScale`, `HairlineDivider`, `SelectedProfileCard`. Ne pas les recréer.
+
+**Supprimés v1 → v2** : `onboarding/phone.tsx`, `vocal.tsx`, `lifestyle.tsx`, `preferences.tsx` · `profile/edit-height.tsx`, `edit-lifestyle.tsx` · racine `app/profile.tsx` · `hooks/useAudioRecorder.ts`, `lib/api.ts`, `lib/utils.ts`.
 
 ## Demo mode
 
-`constants/kolmiConfig.ts` exports `KOLMI_DEMO_MODE`. When `true` (default), the dates tab pre-populates with seed mock meetings (Sarah / Noa / Anna) so the UI is never empty during demos. Set to `false` for real beta users — they then start with no meetings until they request one themselves.
+`constants/kolmiConfig.ts` :
+- `KOLMI_DEMO_MODE = false` (défaut bêta) → user neuf démarre sans rencontre, aucun mock seedé. Mettre à `true` UNIQUEMENT en local pour démos / screenshots. Ne **jamais** commit à `true`.
+- `KOLMI_MOCK_DELAYS_FAST = true` → divise par 10 les délais de `mockBackend` (la simulation de "l'autre côté"). Repasser à `false` pour les démos sinon les transitions sont invisibles.
 
-## Matchmaker logic
+## GIGI — matchmaker IA (Claude)
 
-- Questions in `data/kolmiQuestions.ts`: **16 main** in 4 phases (`warmup` 4 / `emotional_core` 5 / `lucidity` 4 / `depth` 3) + **8 bonus** (`bonus_dna`, `isBonus: true`).
-- Each `QuestionOption` has `scores?: Partial<Record<KolmiDimension, number>>`. The 10 dimensions are spec-side (`attachment`, `emotionalAvailability`, `communication`, `commitment`, `independence`, `conflict`, `romanticIntensity`, `lifestyle`, `values`, `socialEnergy`).
-- DNA categories (Maisons) in `data/kolmiDna.ts`: 16 cultural Maisons. All `dnaCategories` content is inferred (not in the source HTML).
-- `dnaLabels` (16 keys) and `dnaDescriptions` (4 keys) are verbatim from the HTML and are separate from the Maison system.
-- `lib/kolmi/calculateDna.ts` sums `option.scores` into `KolmiDimensionScores` and maps to a `DnaCategoryId` via `mapScoresToCategory`.
+- **Edge Function** `supabase/functions/matchmaker-chat/index.ts` : reçoit `{ message, history, user_context, available_profiles }`, renvoie `{ reply }`. Modèle `claude-haiku-4-5`, `max_tokens: 160` (messages très courts). Le **system prompt** définit la persona GIGI : matchmaker IA, ton personnel/amical, **vouvoiement TOUJOURS**, focalisée matchmaking (rebondit sur le small talk), tokens uniquement au RDV, **zéro mention de « Maison »**. Redéployer après édition : `SUPABASE_ACCESS_TOKEN=… supabase functions deploy matchmaker-chat --project-ref mcqdaplnjswacvifezdf --no-verify-jwt`.
+- **Client** `lib/kolmi/matchmakerChat.ts` : `askMatchmaker({message, history, userContext, profiles})` via `supabase.functions.invoke`. Renvoie `null` en cas d'échec (réseau/quota) → fallback gracieux, jamais de crash.
+- **Accueil (`conversation.tsx`)** : à la première construction du jour, on affiche la timeline locale puis on remplace l'accroche d'ouverture par un **appel de phare** généré par GIGI, **contextuel** selon l'état des meetings (rdv `completed` sans feedback → « comment c'était ? » ; `confirmed` → rdv à venir ; en attente → « pas encore de réponse » ; sinon découverte). Tout premier contact (flag `kolmi.gigi_introduced`) → mot de bienvenue au lieu d'une relance.
+- **Chat (`matchmaker-chat/index.tsx`)** : maintient l'historique local ; on retire l'accroche assistant de tête avant l'appel (Claude exige un 1er message `user`).
+- **Données DNA/Maisons — DORMANT** : `data/kolmiDna.ts` (8 Maisons), `lib/kolmi/matching.ts` (`rankProfilesByAffinity`), `data/kolmiQuestions.ts`, `conversationEngine.ts` existent toujours et sont importés, mais sans test `dna === null` partout → matching = passthrough, aucune Maison visible. À supprimer pour de bon = refactor transverse (types liés). Ne pas réactiver sans décision produit.
+- Conversation du jour : `lib/kolmi/conversationEngine.ts` génère les events typés (`TimelineEvent`) + applique les décisions. Pure logique, persistée par dayKey.
 
-## Storage (v1, local-only)
+## Supabase (câblé)
 
-`lib/kolmi/storage.ts` wraps `@react-native-async-storage/async-storage`. All reads go through `getJson<T>(key, fallback)` which catches corrupt JSON, removes the key, and returns the fallback rather than crashing the app.
+`lib/supabase.ts` exporte le client (URL + anon key inline, projet **`mcqdaplnjswacvifezdf`**). Storage = AsyncStorage, autoRefresh, persistSession. ⚠ Projet **free tier** : se met en pause après ~7 j d'inactivité (DNS NXDOMAIN → `Network request failed`). Réactiver via Management API : `POST https://api.supabase.com/v1/projects/mcqdaplnjswacvifezdf/restore`.
 
-Keys:
-- `kolmi.progress` → `{ hasCompletedBaseOnboarding, hasCompletedMatchmaker }`
-- `kolmi.answers` → `KolmiAnswer[]`
-- `kolmi.dna_result` → `KolmiDnaResult`
-- `kolmi.preferences` → `KolmiPreferences`
-- `kolmi.profile` → `KolmiProfile`
-- `kolmi.tokens` → string-encoded number
-- `kolmi.passed_profiles` → `string[]`
-- `kolmi.meetings` → `Meeting[]`
+- **Edge Function `matchmaker-chat`** (GIGI / Claude) — déployée et ACTIVE, secret `ANTHROPIC_API_KEY` posé. Cf. section « GIGI » ci-dessus.
 
-Mutations on `meetings` (`saveMeeting`, `updateMeeting`, `deleteMeeting`) intentionally **throw** on failure so callers (notably `meeting/request`) can roll back partial state. Other mutations swallow errors with a `console.warn`.
+- **Session** — `lib/kolmi/session.ts`
+  - `bootstrapSession()` au boot dans `app/_layout.tsx` : récupère la session, sinon `signInAnonymously()`. L'utilisateur a **toujours un user_id** pour passer RLS, même avant tout sign-in nominatif.
+  - `useSession()` hook pour les écrans qui ont besoin de réagir à l'auth.
 
-`resetKolmiState()` wipes all keys (used by the dev "Recommencer l'onboarding" button in the Profil tab).
+- **Sync (fire-and-forget)** — `lib/kolmi/sync.ts`. Appelée par `storage.ts` après chaque write local. **Ne bloque jamais l'UI**, ne throw jamais, log sur erreur. Cibles : tables `users`, `answers`, `meetings`, `tokens_ledger`, `passed_profiles`.
+
+- **Lecture profils** — `lib/kolmi/fetchProfiles.ts` :
+  - `fetchSelectableProfiles()` : tous les users `onboarding_complete && matchmaker_complete && dna_category_id IS NOT NULL`, sauf le current user. Fallback `mockSelectedProfiles` si DB vide / KO.
+  - `getProfileByIdSync()` : lookup synchrone via cache module-level (hydraté par fetch), fallback mock. Utilisé par les screens `matches/[id]`, `meeting/*` qui restent synchrones.
+
+- **Maisons** — `lib/kolmi/maisons.ts` : `fetchMaisons()` au boot pour valider la connexion DB. Fallback statique sur `data/kolmiDna.ts`.
+
+- **Photos** — `lib/kolmi/photos.ts` : `uploadProfilePhoto(localUri, index)` vers bucket public `profile-photos`, chemin `<user_id>/<index>-<ts>.jpg`. `uploadProfilePhotos(uris)` upload en parallèle, garde l'URI local en fallback si échec.
+
+- **Limite connue** — un `Meeting.profileId` mock (slug, pas UUID) n'est **pas** synchronisé vers `meetings` DB (no-op silencieux). Quand le matching réel arrivera, `profileId` sera un UUID de `users.id`.
+
+## Storage (local-first + sync DB)
+
+`lib/kolmi/storage.ts` reste la source de vérité côté app. Chaque mutation appelle aussi `sync*ToDb` en fire-and-forget — l'utilisateur ne paie jamais la latence réseau.
+
+- **Caches mémoire** : profil, DNA, prefs, tokens, subscription, hasPurchased. Hydratés au premier read, invalidés au reset.
+- **JSON corrupt-safe** : `getJson<T>(key, fallback)` catch les `JSON.parse` cassés, supprime la clé, renvoie le fallback.
+- **Migration auto** : `getKolmiDnaResult()` wipe `dna_result` si le `categoryId` stocké n'existe plus dans le registre. (Les fonctions answers — `getKolmiAnswers`/`saveKolmiAnswer`/`clearKolmiAnswers` — et `saveKolmiDnaResult` ont été supprimées avec le test ; `getKolmiDnaResult` renvoie donc toujours `null` en pratique.)
+
+Clés :
+- `kolmi.progress` · `kolmi.dna_result` (dormant) · `kolmi.preferences` · `kolmi.profile`
+- `kolmi.tokens` (+ `tokens_ledger` côté DB pour le delta avec raison)
+- `kolmi.passed_profiles` · `kolmi.meetings`
+- `kolmi.push_token` · `kolmi.subscription` · `kolmi.has_purchased`
+- `kolmi.gigi_introduced` — GIGI s'est-elle déjà présentée (1er contact → mot de bienvenue)
+- Conversations par jour : `kolmi.conversation.<YYYY-MM-DD>` (cf. `conversationEngine`)
+
+**Astuce test** (simulateur) : pour forcer une conversation/intro fraîche sans tout reset, éditer le manifest AsyncStorage d'Expo Go et retirer les clés `kolmi.conversation.<jour>` / `kolmi.gigi_introduced` (sous `…/ExponentExperienceData/@anonymous/kolmi-app-*/RCTAsyncLocalStorage/manifest.json`) — app Expo Go terminée d'abord.
+
+Mutations `meetings` (`saveMeeting`, `updateMeeting`, `deleteMeeting`) **throw** pour permettre les rollbacks (notamment `meeting/request` qui débite un token). Les autres mutations swallow + `console.warn`.
+
+`resetKolmiState()` : wipe tout, y compris les conversations indexées par jour. Bouton dev "Recommencer l'onboarding" dans le tab Vous.
 
 ## File layout
 
 ```
 constants/
-  kolmiTheme.ts                # design tokens
-  kolmiConfig.ts               # KOLMI_DEMO_MODE
+  kolmiTheme.ts                # tokens design (couleurs, fonts, spacing, motion)
+  kolmiConfig.ts               # KOLMI_DEMO_MODE, KOLMI_MOCK_DELAYS_FAST
+assets/
+  gigi-avatar.png              # avatar mascotte de GIGI (rond)
 data/
-  kolmiQuestions.ts            # 16 + 8 questions, 10-dim scoring
-  kolmiDna.ts                  # 16 inferred Maisons + verbatim labels/descriptions
-  mockSelectedProfiles.ts      # 6 profiles for Sélection / Découvrir / matches
-  mockMeetings.ts              # 3 seed meetings for the dates tab (DEMO_MODE only)
-  mockVenues.ts                # 3 venues for meeting confirm
+  kolmiQuestions.ts            # DORMANT — questions de l'ancien test (3 axes)
+  kolmiDna.ts                  # DORMANT — 8 Maisons (encore importé par matching)
+  matchmakerCopy.ts            # banque de phrases italique/vouvoiement
+                               # consommée par conversationEngine
+  mockSelectedProfiles.ts      # ~10 profils mock (fallback fetchProfiles)
+  mockMeetings.ts              # 3 seed meetings (DEMO_MODE only)
+  mockVenues.ts                # 3 lieux pour confirm screen
 lib/
-  api.ts                       # callKolmiAI() stub — throws. NO client-side
-                               # Anthropic key. Must go through server.
-  utils.ts                     # formatDuration, formatRelativeTime
+  supabase.ts                  # client Supabase singleton
   kolmi/
-    types.ts                   # KolmiAnswer, KolmiDnaResult, Meeting, Venue, …
-    storage.ts                 # AsyncStorage wrapper with corrupt-JSON safety
-    calculateDna.ts            # scoring → category mapping
+    types.ts                   # KolmiDnaResult, Meeting, Venue, …
+    matchmakerChat.ts          # askMatchmaker() → Edge Function GIGI (Claude)
+    storage.ts                 # AsyncStorage + fire-and-forget sync DB
+    safePersist.ts             # wrap mutation + Alert utilisateur si échec
+    safeRead.ts                # wrap lecture + fallback si échec
+    session.ts                 # bootstrapSession + useSession hook
+    sync.ts                    # sync*ToDb writers
+    fetchProfiles.ts           # fetch users + cache sync getProfileByIdSync
+    maisons.ts                 # fetchMaisons (fallback statique)
+    matching.ts                # scoreMaisonAffinity + rankProfilesByAffinity
+    photos.ts                  # upload Storage profile-photos
+    photoPicker.ts             # expo-image-picker + permission helper
+    conversationEngine.ts      # logique pure timeline du jour, persistance
+                               # par dayKey
+    mockBackend.ts             # simule l'autre côté : accepte / décline /
+                               # propose slots / feedback, via setTimeout +
+                               # notif locale
+    notifications.ts           # registerForPushNotificationsAsync (Expo push)
     haptics.ts                 # tapMedium / tapLight / select / success
-hooks/
-  useAudioRecorder.ts          # used only by onboarding/vocal.tsx (expo-av)
+    motion.ts                  # durations + easings (out-cubic, soft bezier)
 components/kolmi/
-  GrainOverlay, KolmiWordmark, SignupHeader, Wheel  # primitives
-  EmptyKeyboardAccessory       # iOS QuickType bar suppressor
-  ChatBubble, TypingIndicator, AnswerOptions, PhaseDivider, MatchmakerChat
-                               # ⚠ "ChatBubble" / "MatchmakerChat" refer to the
-                               # matchmaker QUIZ UI — guided Q&A with the IA.
-                               # NEVER add user-to-user chat reusing these.
-  MatchmakerGreeting, SelectedProfileCard
-  DnaReveal                    # animated DNA result reveal
+  GrainOverlay · KolmiWordmark · SignupHeader · Wheel        # primitives
+  EmptyKeyboardAccessory                                     # iOS quicktype kill
+  SkeletonBlock                                              # micro-UI
+  BreathingText · AnimatedCounter                            # text fx
+  TypingIndicator                                            # frappe GIGI (chat)
+  MatchmakerMessage · ConversationDayHeader
+  ProfilePresentationCard · DecisionInline
+  ProfileMiniRecap · ProfilePhotoPlaceholder
+  EncountersSegmentedControl · SwipeToConfirm
 ```
 
 ## Conventions
 
-- Path alias `@/*` resolves to project root (configured in `tsconfig.json`).
-- TypeScript `strict: true`. Run `npm run typecheck` before declaring done (currently 0 errors).
-- Onboarding screens use `tu` ; matchmaker + post-onboarding use `vous`.
-- The matchmaker chat literals (`#16130F`, `#FAF8F5`, `#E2CBA8`, `'Georgia'`) are deliberate — don't refactor them into theme tokens.
-- Never start a second `npx expo start` — only one Metro can hold port 8081. Reload the running one with Cmd+R in the simulator.
-- Map keys MUST be unique. Use `profile.id` or `${profile.id}-${i}` (never bare `key={i}` for content lists).
+- Path alias `@/*` résout depuis la racine du projet (`tsconfig.json`).
+- TypeScript `strict: true`. Lancer `npm run typecheck` avant de claim "fini" (0 erreurs aujourd'hui).
+- Tutoiement (`tu`) dans l'onboarding ; **GIGI et tout le post-onboarding vouvoient (`vous`)**, toujours (même en ton amical).
+- Ne jamais lancer un 2ᵉ `npx expo start` — un seul Metro tient le port 8081. Recharger via Cmd+R dans le simulateur.
+- Map keys uniques. `profile.id` ou `${profile.id}-${i}`, jamais `key={i}` sur du contenu.
+- **Sync DB** : appeler `fireAndForget(syncXToDb(...))` après chaque write local, jamais `await`. L'UI ne doit pas dépendre du round-trip Supabase.
 
-## Banned strings in user-facing copy
+## Banned strings (copy utilisateur)
 
-- `Message`, `chat`, `conversation` (UI label), `DM`, `envoyer un message`, `écrire un message`
+- `Message`, `DM`, `envoyer un message` **entre users** (le chat avec GIGI, user ↔ IA, est OK et s'appelle « chat »).
 - `swipe`
 - `VoiceMatch`
-- Any text promising AI analysis that isn't actually wired — `lib/api.ts` does not call Anthropic.
+- « Maison », typologie, ADN, catégorie de personnalité dans la **copy utilisateur** (concept retiré — GIGI ne doit jamais les mentionner).
 
-## Running the test/typecheck pass
+(Note : « conversation » = la timeline éditoriale du tab central, son nom officiel dans le code.)
+
+## Running test / typecheck
 
 ```sh
 npm run typecheck   # tsc --noEmit

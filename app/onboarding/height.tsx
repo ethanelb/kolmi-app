@@ -12,12 +12,13 @@ import {
   kolmiRadius,
   kolmiFonts,
   kolmiPaddingX,
+  fontScale,
 } from '@/constants/kolmiTheme'
 import SignupHeader from '@/components/kolmi/SignupHeader'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import { getKolmiProfile, saveKolmiProfile } from '@/lib/kolmi/storage'
 
-const SIGNUP_TOTAL_STEPS = 11
+const SIGNUP_TOTAL_STEPS = 10
 const ITEM_HEIGHT = 56
 const VISIBLE_ITEMS = 5
 const PICKER_HEIGHT = ITEM_HEIGHT * VISIBLE_ITEMS
@@ -126,7 +127,7 @@ export default function HeightScreen() {
       <GrainOverlay />
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <SignupHeader
-          step={7}
+          step={5}
           total={SIGNUP_TOTAL_STEPS}
           onBack={() => router.back()}
         />
@@ -218,7 +219,7 @@ export default function HeightScreen() {
             onPress={async () => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
               await saveKolmiProfile({ heightCm: selectedCm })
-              router.push('/onboarding/lifestyle')
+              router.push('/onboarding/orientation')
             }}
             activeOpacity={0.85}
           >
@@ -240,7 +241,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 36,
+    fontSize: fontScale(36),
     color: kolmiColors.text,
     lineHeight: 42,
     letterSpacing: -0.4,
@@ -282,7 +283,7 @@ const styles = StyleSheet.create({
 
   selectedValue: {
     fontFamily: kolmiFonts.serif,
-    fontSize: 44,
+    fontSize: fontScale(44),
     color: kolmiColors.accent,
     textAlign: 'center',
     letterSpacing: -1,

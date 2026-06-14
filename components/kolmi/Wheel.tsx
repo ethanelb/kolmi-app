@@ -8,12 +8,12 @@ import {
   NativeScrollEvent,
 } from 'react-native'
 import * as Haptics from 'expo-haptics'
-import { kolmiColors, kolmiFonts, kolmiRadius } from '@/constants/kolmiTheme'
+import { kolmiColors, kolmiFonts, kolmiRadius, vScale, fontScale } from '@/constants/kolmiTheme'
 
-const ITEM_HEIGHT = 30
+const ITEM_HEIGHT = Math.round(vScale(30))
 const VISIBLE_ROWS = 7
 const HEIGHT = ITEM_HEIGHT * VISIBLE_ROWS
-const CYCLES = 100
+const CYCLES = 20
 
 interface Props<T extends string | number> {
   items: T[]
@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   label: {
-    fontSize: 18,
+    fontSize: fontScale(18),
     color: kolmiColors.text,
     fontFamily: kolmiFonts.serifLegacy,
     includeFontPadding: false,
