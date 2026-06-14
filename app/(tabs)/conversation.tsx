@@ -6,12 +6,13 @@ import {
   StyleSheet,
   Modal,
   Pressable,
+  Share,
   TouchableOpacity,
 } from 'react-native'
 import { Image } from 'expo-image'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'
-import Svg, { Path, Rect, Circle } from 'react-native-svg'
+import Svg, { Path, Circle } from 'react-native-svg'
 import Animated, { FadeInUp } from 'react-native-reanimated'
 import {
   kolmiColors,
@@ -26,9 +27,12 @@ import KolmiWordmark from '@/components/kolmi/KolmiWordmark'
 import { mockSelectedProfiles } from '@/data/mockSelectedProfiles'
 import { rankProfilesByAffinity } from '@/lib/kolmi/matching'
 import { fetchSelectableProfiles } from '@/lib/kolmi/fetchProfiles'
+import { askMatchmaker } from '@/lib/kolmi/matchmakerChat'
 import {
   getKolmiDnaResult,
   getKolmiProfile,
+  getGigiIntroduced,
+  setGigiIntroduced,
   getPassedProfiles,
   passProfile,
   getTokens,
@@ -80,7 +84,7 @@ const NUDGE_COPY: Record<NudgeVariant, NudgeContent> = {
   full: {
     kicker: 'Tout commence ici',
     title: 'Une rencontre peut changer une vie.',
-    body: 'Le matchmaker continue à lire pour vous. La prochaine personne qui compte est peut-être déjà dans le courrier — à vous de tendre la main.',
+    body: 'GIGI continue à lire pour vous. La prochaine personne qui compte est peut-être déjà dans le courrier — à vous de tendre la main.',
     tiles: [
       { kicker: 'À la pièce', price: 'dès 15 €' },
       { kicker: 'Sans compter', price: '60 € / mois' },
@@ -97,7 +101,7 @@ const NUDGE_COPY: Record<NudgeVariant, NudgeContent> = {
   abonnement: {
     kicker: 'Arrêter de compter',
     title: 'Et si vous laissiez le hasard de côté ?',
-    body: '5 tokens chaque mois, profils illimités, le matchmaker en alerte permanente. Pour ceux qui ne veulent plus laisser passer la bonne personne par flemme du compteur.',
+    body: '5 tokens chaque mois, profils illimités, GIGI en alerte permanente. Pour ceux qui ne veulent plus laisser passer la bonne personne par flemme du compteur.',
     tiles: [{ kicker: 'Abonnement KOLMI', price: '60 € / mois' }],
     ctaLabel: 'Découvrir l\'abonnement',
   },
@@ -142,7 +146,7 @@ export default function ConversationTabScreen() {
   const load = useCallback(async () => {
     await cleanupOldConversations()
     const day = todayKey()
-    const [stored, dna, passed, balance, subscribed, purchased, allProfiles] =
+    const [stored, dna, passed, balance, subscribed, purchased, allProfiles, profile, meetingsList] =
       await Promise.all([
         loadConversation(day),
         getKolmiDnaResult(),
@@ -151,11 +155,14 @@ export default function ConversationTabScreen() {
         isSubscribed(),
         getHasPurchased(),
         fetchSelectableProfiles(),
+        getKolmiProfile(),
+        getMeetings(),
       ])
     dnaRef.current = dna
     setTokens(balance)
     setSubscribed(subscribed)
     setHasPurchased(purchased)
+    setMeetings(meetingsList)
 
     if (stored) {
       // Conversation existante du jour — on la restaure tel quel.
@@ -197,6 +204,77 @@ export default function ConversationTabScreen() {
     const fresh = buildDayConversation(candidates, dna)
     setState(fresh)
     saveConversation(fresh).catch(() => {})
+
+    // LIA (matchmaker Claude) réécrit l'accroche d'ouverture à partir des
+    // profils du soir. La conversation locale s'affiche déjà — on remplace
+    // juste le texte d'ouverture quand LIA répond (~2-3 s). Si l'appel
+    // échoue, on garde le texte local : aucune régression.
+    // Appel de phare contextuel : l'accroche s'adapte à l'état des
+    // rencontres de l'utilisateur (rdv passé, à venir, en attente, ou
+    // simple découverte) — une relance pour donner envie de taper.
+    const resolveName = (id: string) =>
+      (allProfiles.find((p) => p.id === id) ??
+        mockSelectedProfiles.find((p) => p.id === id))?.firstName
+    const HOOK_BASE =
+      "(Directive système — bulle d'accueil, PAS une vraie conversation. UNE phrase max, vouvoiement, légère et chaleureuse, qui donne envie de taper pour lancer la discussion. Pas de présentation de profil détaillée, pas de question d'interview.) "
+
+    const completed = meetingsList.find(
+      (m) => m.status === 'completed' && m.feedbackByMe === undefined,
+    )
+    const confirmed = meetingsList.find((m) => m.status === 'confirmed')
+    const waiting = meetingsList.find(
+      (m) => m.status === 'requested_by_me' || m.status === 'waiting_for_other',
+    )
+
+    // Tout premier contact de la vie de l'utilisateur avec GIGI → mot de
+    // bienvenue chaleureux (présentation), pas une relance.
+    const introduced = await getGigiIntroduced()
+    let hookMessage =
+      HOOK_BASE +
+      'Écrivez un appel de phare "découverte", ex : "Prêt à découvrir de nouveaux profils ?".'
+    if (!introduced) {
+      hookMessage =
+        "(Directive système — TOUT PREMIER message de la vie de cette personne avec vous. Présentez-vous chaleureusement, façon \"moi c'est GIGI\", dites avec un enthousiasme sincère que vous êtes son matchmaker et que vous allez apprendre à la connaître pour lui présenter les bonnes personnes. Vouvoyez. 2 phrases max, chaleureux et vivant. AUCUNE mention de tokens, pas de profil encore.)"
+      setGigiIntroduced().catch(() => {})
+    } else if (completed) {
+      const n = resolveName(completed.profileId)
+      hookMessage =
+        HOOK_BASE +
+        `Demandez avec curiosité, comme une amie, comment s'est passé son rendez-vous${n ? ` avec ${n}` : ''}.`
+    } else if (confirmed) {
+      const n = resolveName(confirmed.profileId)
+      hookMessage =
+        HOOK_BASE +
+        `Évoquez avec un enthousiasme léger son rendez-vous à venir${n ? ` avec ${n}` : ''}.`
+    } else if (waiting) {
+      const n = resolveName(waiting.profileId)
+      hookMessage =
+        HOOK_BASE +
+        `Glissez que vous attendez encore la réponse${n ? ` de ${n}` : ''}, et proposez d'en voir d'autres en attendant.`
+    }
+
+    askMatchmaker({
+      message: hookMessage,
+      userContext: {
+        firstName: profile.firstName,
+        tokens: balance,
+      },
+      profiles: candidates.slice(0, 3),
+    })
+      .then((reply) => {
+        if (!reply) return
+        const withLia: ConversationState = {
+          ...fresh,
+          events: fresh.events.map((e) =>
+            e.kind === 'matchmaker_message' && e.tone === 'opening'
+              ? { ...e, text: reply }
+              : e,
+          ),
+        }
+        setState(withLia)
+        saveConversation(withLia).catch(() => {})
+      })
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -356,18 +434,22 @@ export default function ConversationTabScreen() {
     openingMessage?.text ?? 'Voici votre sélection du jour.'
   const openingTime = formatHourMinute(openingMessage?.at)
 
-  // Date label sous le header (« mercredi 27 mai »).
-  const dayLabel = (() => {
-    const header = state?.events.find(
-      (e): e is Extract<TimelineEvent, { kind: 'day_header' }> => e.kind === 'day_header',
-    )
-    return header?.label ?? frenchDateLabel(new Date())
-  })()
-
   // Rencontres en cours — actives = ni declined ni completed.
   const activeMeetings = meetings.filter(
     (m) => m.status !== 'declined' && m.status !== 'completed',
   )
+
+  // Partage natif — inviter des amis sur Kolmi.
+  const handleShareApp = async () => {
+    try {
+      await Share.share({
+        message:
+          "Je suis sur Kolmi — un matchmaker te présente des gens vraiment choisis, pas de swipe à l'infini. Rejoins-moi : https://kolmi.app",
+      })
+    } catch {
+      // L'utilisateur a annulé le partage — rien à faire.
+    }
+  }
 
   return (
     <View style={styles.root}>
@@ -412,27 +494,21 @@ export default function ConversationTabScreen() {
           </View>
 
           <TouchableOpacity
-            onPress={() => router.push('/(tabs)/encounters')}
+            onPress={handleShareApp}
             activeOpacity={0.7}
             style={styles.headerIconButton}
             hitSlop={10}
-            accessibilityLabel="Rencontres"
+            accessibilityLabel="Inviter des amis sur Kolmi"
             accessibilityRole="button"
           >
-            <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
-              <Rect x={4} y={6} width={16} height={3.2} rx={0.8} stroke={kolmiColors.text} strokeWidth={1.6} fill="none" />
-              <Rect x={4} y={11.2} width={16} height={3.2} rx={0.8} stroke={kolmiColors.text} strokeWidth={1.6} fill="none" />
-              <Rect x={4} y={16.4} width={16} height={3.2} rx={0.8} stroke={kolmiColors.text} strokeWidth={1.6} fill="none" />
+            {/* Icône partage — trois nœuds reliés (inviter des gens). */}
+            <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+              <Circle cx={6} cy={12} r={2.6} stroke={kolmiColors.text} strokeWidth={1.6} fill="none" />
+              <Circle cx={18} cy={6} r={2.6} stroke={kolmiColors.text} strokeWidth={1.6} fill="none" />
+              <Circle cx={18} cy={18} r={2.6} stroke={kolmiColors.text} strokeWidth={1.6} fill="none" />
+              <Path d="M8.3 10.8 L15.7 7.2 M8.3 13.2 L15.7 16.8" stroke={kolmiColors.text} strokeWidth={1.6} strokeLinecap="round" />
             </Svg>
           </TouchableOpacity>
-        </View>
-
-        {/* Date du jour — ruban éditorial entre header et carte
-            matchmaker (« mercredi 27 mai » entre deux hairlines). */}
-        <View style={styles.dayDivider}>
-          <View style={styles.dayHairline} />
-          <Text style={styles.dayLabel}>{dayLabel}</Text>
-          <View style={styles.dayHairline} />
         </View>
 
         <ScrollView
@@ -442,6 +518,16 @@ export default function ConversationTabScreen() {
           {/* Carte matchmaker — l'IA comme entité passive, pas comme
               chat actif. Avatar à gauche, mot du jour à droite. */}
           {state && (
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: '/matchmaker-chat',
+                  params: { opening: openingText ?? '' },
+                })
+              }
+              accessibilityRole="button"
+              accessibilityLabel="Discuter avec GIGI"
+            >
             <Animated.View
               entering={FadeInUp.duration(kolmiMotion.duration.lg).easing(
                 kolmiMotion.easing.soft,
@@ -449,56 +535,15 @@ export default function ConversationTabScreen() {
               style={styles.matchmakerCard}
             >
               <View style={styles.matchmakerAvatar}>
-                {/* Portrait line-art minimaliste — visage de profil
-                    légèrement abstrait, cream sur dark, style éditorial.
-                    Donne au matchmaker une présence sans tomber dans la
-                    photo réaliste. */}
-                <Svg width={32} height={32} viewBox="0 0 32 32" fill="none">
-                  {/* Cheveux / arc supérieur */}
-                  <Path
-                    d="M9 13.2 C9.5 7.8 14 6 16 6 C18.5 6 22 8 22.6 12.6"
-                    stroke="#FAF8F5"
-                    strokeWidth={1.3}
-                    strokeLinecap="round"
-                    fill="none"
-                  />
-                  {/* Tête (ovale) */}
-                  <Path
-                    d="M9.4 14.2 C9.4 11.6 11.8 9.6 16 9.6 C20.2 9.6 22.6 11.6 22.6 14.6 C22.6 18 20 20.4 16 20.4 C12 20.4 9.4 18 9.4 14.6 Z"
-                    stroke="#FAF8F5"
-                    strokeWidth={1.3}
-                    fill="none"
-                  />
-                  {/* Œil */}
-                  <Circle cx={18.3} cy={14.4} r={0.55} fill="#FAF8F5" />
-                  {/* Sourire discret */}
-                  <Path
-                    d="M15.8 17.3 Q17 18 18.4 17.3"
-                    stroke="#FAF8F5"
-                    strokeWidth={1.1}
-                    strokeLinecap="round"
-                    fill="none"
-                  />
-                  {/* Cou + col / épaules */}
-                  <Path
-                    d="M14 20.6 L14 22.6 C12 22.8 9 23.8 8.5 26.5"
-                    stroke="#FAF8F5"
-                    strokeWidth={1.3}
-                    strokeLinecap="round"
-                    fill="none"
-                  />
-                  <Path
-                    d="M18.4 20.6 L18.4 22.6 C20.4 22.8 23 23.8 23.5 26.5"
-                    stroke="#FAF8F5"
-                    strokeWidth={1.3}
-                    strokeLinecap="round"
-                    fill="none"
-                  />
-                </Svg>
+                <Image
+                  source={require('../../assets/gigi-avatar.png')}
+                  style={styles.matchmakerAvatarImg}
+                  contentFit="cover"
+                />
               </View>
               <View style={styles.matchmakerBody}>
                 <View style={styles.matchmakerHeaderRow}>
-                  <Text style={styles.matchmakerName}>Le matchmaker</Text>
+                  <Text style={styles.matchmakerName}>GIGI</Text>
                   {openingTime && (
                     <Text style={styles.matchmakerTime}>{openingTime}</Text>
                   )}
@@ -506,6 +551,7 @@ export default function ConversationTabScreen() {
                 <Text style={styles.matchmakerText}>{openingText}</Text>
               </View>
             </Animated.View>
+            </Pressable>
           )}
 
           {/* Section « Mes intros » — profils du jour non décidés. */}
@@ -577,7 +623,7 @@ export default function ConversationTabScreen() {
                   La sélection est complète pour aujourd'hui.
                 </Text>
                 <Text style={styles.emptyBody}>
-                  Le matchmaker reprend demain. En attendant, vous pouvez
+                  GIGI reprend demain. En attendant, vous pouvez
                   relire vos rencontres en cours.
                 </Text>
               </Animated.View>
@@ -734,27 +780,6 @@ const styles = StyleSheet.create({
     backgroundColor: kolmiColors.surfaceSoft,
   },
 
-  // ─── Ruban date sous le header ──────────────────────────────────────
-  dayDivider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: kolmiSpace.sm,
-    paddingHorizontal: kolmiPaddingX,
-    paddingTop: kolmiSpace.xs,
-    paddingBottom: kolmiSpace.sm,
-  },
-  dayHairline: {
-    flex: 1,
-    height: 0.6,
-    backgroundColor: 'rgba(139,26,26,0.35)',
-  },
-  dayLabel: {
-    fontFamily: kolmiFonts.serifItalic,
-    fontSize: 14,
-    color: kolmiColors.textSecondary,
-    letterSpacing: 0.1,
-  },
-
   // ─── Feed scrollable ────────────────────────────────────────────────
   feedContent: {
     paddingHorizontal: kolmiPaddingX,
@@ -787,6 +812,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#16130F',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  matchmakerAvatarImg: {
+    width: '100%',
+    height: '100%',
   },
   matchmakerBody: {
     flex: 1,
@@ -823,7 +853,7 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontFamily: kolmiFonts.uiSemiBold,
     fontSize: 11,
-    color: kolmiColors.textSecondary,
+    color: kolmiColors.accent,
     textTransform: 'uppercase',
     letterSpacing: 1.6,
   },
@@ -1030,34 +1060,6 @@ const styles = StyleSheet.create({
 })
 
 // ─── Helpers ──────────────────────────────────────────────────────────
-
-const FRENCH_DAYS = [
-  'dimanche',
-  'lundi',
-  'mardi',
-  'mercredi',
-  'jeudi',
-  'vendredi',
-  'samedi',
-]
-const FRENCH_MONTHS = [
-  'janvier',
-  'février',
-  'mars',
-  'avril',
-  'mai',
-  'juin',
-  'juillet',
-  'août',
-  'septembre',
-  'octobre',
-  'novembre',
-  'décembre',
-]
-
-function frenchDateLabel(d: Date): string {
-  return `${FRENCH_DAYS[d.getDay()]} ${d.getDate()} ${FRENCH_MONTHS[d.getMonth()]}`
-}
 
 function formatHourMinute(iso: string | undefined): string | null {
   if (!iso) return null

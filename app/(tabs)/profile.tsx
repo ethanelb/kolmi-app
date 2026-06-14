@@ -18,55 +18,43 @@ import AnimatedCounter from '@/components/kolmi/AnimatedCounter'
 import BreathingText from '@/components/kolmi/BreathingText'
 import SkeletonBlock from '@/components/kolmi/SkeletonBlock'
 import {
-  clearKolmiAnswers,
   getKolmiDnaResult,
-  getKolmiPreferences,
   getKolmiProfile,
   getTokens,
   resetKolmiState,
   isSubscribed,
   getHasPurchased,
-  type KolmiPreferences,
   type KolmiProfile,
 } from '@/lib/kolmi/storage'
 import { kolmiMotion, staggerDelay } from '@/lib/kolmi/motion'
 import type { KolmiDnaResult } from '@/lib/kolmi/types'
-import { useSession } from '@/lib/kolmi/session'
 import { supabase } from '@/lib/supabase'
 
 export default function ProfileTabScreen() {
   const router = useRouter()
   const [profile, setProfile] = useState<KolmiProfile>({})
   const [dna, setDna] = useState<KolmiDnaResult | null>(null)
-  const [prefs, setPrefs] = useState<KolmiPreferences | null>(null)
   const [tokens, setTokensState] = useState<number>(0)
   const [subscribed, setSubscribed] = useState<boolean>(false)
   const [purchased, setPurchased] = useState<boolean>(false)
   const [isLoading, setIsLoading] = useState<boolean>(true)
-  const { user } = useSession()
-  // is_anonymous est défini quand le user vient d'un signInAnonymously.
-  // Une fois lié à un email, ce flag bascule à false (ou disparaît).
-  const isAnonymous = user?.is_anonymous ?? true
 
   const refresh = React.useCallback(async () => {
     const [
       nextProfile,
       nextDna,
-      nextPrefs,
       nextTokens,
       nextSub,
       nextPurchased,
     ] = await Promise.all([
       getKolmiProfile(),
       getKolmiDnaResult(),
-      getKolmiPreferences(),
       getTokens(),
       isSubscribed(),
       getHasPurchased(),
     ])
     setProfile(nextProfile)
     setDna(nextDna)
-    setPrefs(nextPrefs)
     setTokensState(nextTokens)
     setSubscribed(nextSub)
     setPurchased(nextPurchased)
@@ -162,57 +150,7 @@ export default function ProfileTabScreen() {
             </Svg>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={() => router.push('/premium')}
-            activeOpacity={0.7}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 6,
-              paddingHorizontal: 10,
-              paddingVertical: 6,
-              opacity: tokens === 0 ? 0.55 : 1,
-            }}
-            hitSlop={8}
-            accessibilityLabel={
-              tokens > 0
-                ? `${tokens} tokens disponibles, voir les recharges`
-                : 'Aucun token, voir les recharges'
-            }
-            accessibilityRole="button"
-          >
-            <View
-              style={
-                tokens === 0
-                  ? {
-                      width: 6,
-                      height: 6,
-                      borderRadius: 3,
-                      borderWidth: 1,
-                      borderColor: kolmiColors.textMuted,
-                    }
-                  : {
-                      width: 6,
-                      height: 6,
-                      borderRadius: 3,
-                      backgroundColor: kolmiColors.accent,
-                    }
-              }
-            />
-            <Text
-              style={{
-                fontFamily: kolmiFonts.uiSemiBold,
-                fontSize: 14,
-                color: tokens === 0 ? kolmiColors.textMuted : kolmiColors.text,
-                letterSpacing: 0.4,
-              }}
-            >
-              {tokens}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Spacer 36x36 pour centrer optiquement le pill tokens — mirroir
-              du back-arrow à gauche. */}
+          {/* Spacer 36x36 — équilibre la flèche retour à gauche. */}
           <View style={{ width: 36, height: 36 }} />
         </View>
 
@@ -230,7 +168,6 @@ export default function ProfileTabScreen() {
 
           {isLoading ? (
             <>
-              <SectionSkeleton title="Ma Maison" index={0} variant="dna" />
               <SectionSkeleton
                 title="Tokens de rencontre"
                 index={1}
@@ -245,66 +182,6 @@ export default function ProfileTabScreen() {
             </>
           ) : (
             <>
-          {/* Maison ADN */}
-          {dna && (
-            <Section title="Ma Maison" index={0}>
-              <View style={{ gap: kolmiSpace.xs }}>
-                <BreathingText
-                  style={{
-                    fontFamily: kolmiFonts.serif,
-                    fontSize: fontScale(28),
-                    color: kolmiColors.text,
-                    letterSpacing: -0.3,
-                  }}
-                >
-                  {dna.categoryLabel}
-                </BreathingText>
-                <Text
-                  style={{
-                    fontFamily: kolmiFonts.serifItalic,
-                    fontSize: 14,
-                    color: kolmiColors.textBody,
-                    lineHeight: 20,
-                  }}
-                >
-                  {dna.summary}
-                </Text>
-              </View>
-              <ActionRow
-                label="Voir mon ADN"
-                onPress={() =>
-                  router.push({
-                    pathname: '/matchmaker/result',
-                    params: { instant: '1' },
-                  })
-                }
-              />
-              <ActionRow
-                label="Refaire le test"
-                onPress={() => {
-                  Alert.alert(
-                    'Refaire le test',
-                    'Vos 8 réponses actuelles seront effacées pour refaire le test. Votre Maison actuelle reste affichée tant que le nouveau test n’est pas terminé.',
-                    [
-                      { text: 'Annuler', style: 'cancel' },
-                      {
-                        text: 'Refaire',
-                        style: 'destructive',
-                        onPress: async () => {
-                          // Sans ce wipe, MatchmakerChat détecte 8 réponses
-                          // valides et bounce direct vers /matchmaker/result
-                          // — l'utilisateur ne voit jamais une question.
-                          await clearKolmiAnswers()
-                          router.replace('/matchmaker')
-                        },
-                      },
-                    ],
-                  )
-                }}
-              />
-            </Section>
-          )}
-
           {/* Tokens */}
           <Section title="Tokens de rencontre" index={1}>
             <View
@@ -410,28 +287,6 @@ export default function ProfileTabScreen() {
 
           {/* Préférences */}
           <Section title="Mes préférences" index={4}>
-            {prefs ? (
-              <Text
-                style={{
-                  fontFamily: kolmiFonts.ui,
-                  fontSize: 14,
-                  color: kolmiColors.textBody,
-                  lineHeight: 21,
-                }}
-              >
-                {prefs.minAge}–{prefs.maxAge} ans · {prefs.distance}
-              </Text>
-            ) : (
-              <Text
-                style={{
-                  fontFamily: kolmiFonts.serifItalic,
-                  fontSize: 14,
-                  color: kolmiColors.textMuted,
-                }}
-              >
-                Aucune préférence renseignée.
-              </Text>
-            )}
             <ActionRow label="Modifier mes préférences (bientôt)" onPress={() => {}} disabled />
           </Section>
             </>
@@ -439,20 +294,8 @@ export default function ProfileTabScreen() {
 
           {/* Compte */}
           <Section title="Compte" index={5}>
-            {isAnonymous ? (
-              <ActionRow
-                label="Sécuriser mon compte"
-                onPress={() => router.push('/auth/email')}
-              />
-            ) : (
-              <ActionRow
-                label={user?.email ? `Connecté en tant que ${user.email}` : 'Compte sécurisé'}
-                onPress={() => {}}
-                disabled
-              />
-            )}
             <ActionRow
-              label="Confidentialité (bientôt)"
+              label="Mentions légales (bientôt site web)"
               onPress={() => {}}
               disabled
             />
@@ -539,17 +382,6 @@ function SignatureCard({
       </View>
 
       <View style={{ flex: 1, gap: 2 }}>
-        <Text
-          style={{
-            fontFamily: kolmiFonts.uiSemiBold,
-            fontSize: 10,
-            letterSpacing: 1.8,
-            color: kolmiColors.textSecondary,
-            textTransform: 'uppercase',
-          }}
-        >
-          Membre · KOLMI
-        </Text>
         <Text
           style={{
             fontFamily: kolmiFonts.serif,
@@ -647,7 +479,7 @@ function SubscriptionPromoCard({
           marginTop: 2,
         }}
       >
-        5 tokens chaque mois, profils illimités, le matchmaker en alerte
+        5 tokens chaque mois, profils illimités, GIGI en alerte
         permanente. 60 € / mois.
       </Text>
 

@@ -44,8 +44,8 @@ export const screenWidth = SCREEN_W
 export const screenHeight = SCREEN_H
 
 export const kolmiColors = {
-  bg: '#F5F1EA',           // cream paper
-  bgDeep: '#EFEAE0',       // slightly deeper cream — used for gradient/grain
+  bg: '#FBF8F3',           // cream paper — éclairci pour un rendu plus vif
+  bgDeep: '#F4EFE7',       // deeper cream — gradient/grain
   text: '#0A0A0A',         // deep black for titles + body emphasis
   textBody: '#2A2A2A',     // body copy
   textSecondary: '#5A544C',
@@ -54,10 +54,11 @@ export const kolmiColors = {
   textGhost: '#CCC3BA',
   accent: '#8B1A1A',       // bordeaux — wordmark, primary CTA, strike
   accentDeep: '#6E1313',   // pressed-state bordeaux
+  accentSoft: 'rgba(139,26,26,0.08)', // teinte bordeaux très légère — fonds/détails
   outline: 'rgba(26,26,26,0.2)', // 20% black outline for secondary CTA
   divider: '#0A0A0A',
-  surfaceSoft: '#E8E2D6',  // disabled CTA
-  surfaceWheel: '#EBE5D9', // wheel-picker selection band
+  surfaceSoft: '#EFE8DB',  // disabled CTA — éclairci
+  surfaceWheel: '#F1EBDF', // wheel-picker selection band — éclairci
   white: '#FFFFFF',
 }
 

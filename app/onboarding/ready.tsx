@@ -1,10 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native'
+import { View, Text, StyleSheet, Pressable } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import Animated, {
   cancelAnimation,
-  interpolateColor,
   runOnJS,
   useSharedValue,
   useAnimatedStyle,
@@ -23,6 +22,7 @@ import {
   kolmiFonts,
   kolmiPaddingX,
   fontScale,
+  screenHeight,
 } from '@/constants/kolmiTheme'
 import GrainOverlay from '@/components/kolmi/GrainOverlay'
 import KolmiWordmark from '@/components/kolmi/KolmiWordmark'
@@ -70,6 +70,11 @@ export default function ReadyScreen() {
   const ctaInk = useSharedValue(0)
   // Dérive subtile de la flèche à droite (invitation au tap).
   const arrowDrift = useSharedValue(0)
+
+  // Sortie : à la fin des 2 s, toute la scène descend et s'efface, comme une
+  // page qu'on fait défiler vers le bas, avant d'entrer dans la conversation.
+  const exitY = useSharedValue(0)
+  const exitOpacity = useSharedValue(1)
 
   useEffect(() => {
     success()
@@ -277,8 +282,27 @@ export default function ReadyScreen() {
       console.warn('[kolmi] initial token grant failed', err)
     }
 
-    router.replace('/matchmaker')
+    router.replace('/(tabs)/conversation')
   }
+
+  // Plus de bouton : une fois le manifeste révélé (wordmark affiché), on
+  // laisse la page respirer ~2 s, puis la scène descend et s'efface avant
+  // d'enchaîner sur la conversation. Le tap fast-forward le manifeste.
+  useEffect(() => {
+    if (!revealed) return
+    const t = setTimeout(() => {
+      exitOpacity.value = withTiming(0, { duration: 620, easing: Easing.in(Easing.cubic) })
+      exitY.value = withTiming(
+        screenHeight * 0.55,
+        { duration: 620, easing: Easing.in(Easing.cubic) },
+        (finished) => {
+          if (finished) runOnJS(onContinue)()
+        },
+      )
+    }, 2000)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealed])
 
   // Styles animés. Chaque phrase a son propre couple (opacity / trace).
   const phrase0Style = useAnimatedStyle(() => ({
@@ -314,39 +338,11 @@ export default function ReadyScreen() {
     ],
   }))
 
-  const ctaStyle = useAnimatedStyle(() => ({
-    opacity: ctaOpacity.value,
-    transform: [
-      { translateY: ctaTranslate.value },
-      { scale: ctaPulse.value },
-    ],
+  const exitStyle = useAnimatedStyle(() => ({
+    flex: 1,
+    opacity: exitOpacity.value,
+    transform: [{ translateY: exitY.value }],
   }))
-
-  // Tampon bordeaux : transition continue de outline → fill au press.
-  const ctaInkStyle = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(
-      ctaInk.value,
-      [0, 1],
-      ['rgba(139,26,26,0)', kolmiColors.accent],
-    ),
-  }))
-  const ctaTextStyle = useAnimatedStyle(() => ({
-    color: interpolateColor(
-      ctaInk.value,
-      [0, 1],
-      [kolmiColors.accent, kolmiColors.bg],
-    ),
-  }))
-  const arrowStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: arrowDrift.value }],
-  }))
-
-  const handlePressIn = () => {
-    ctaInk.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.cubic) })
-  }
-  const handlePressOut = () => {
-    ctaInk.value = withTiming(0, { duration: 320, easing: Easing.out(Easing.cubic) })
-  }
 
   return (
     <View style={styles.root}>
@@ -356,49 +352,25 @@ export default function ReadyScreen() {
             qu'elles partagent exactement le même point d'ancrage et que
             le crossfade soit propre. Le wordmark reprend la même zone
             une fois le manifeste terminé. Tap n'importe où sur la stage
-            pendant le manifeste fast-forward vers le wordmark + CTA. */}
-        <Pressable
-          style={styles.stage}
-          onPress={revealNow}
-          disabled={revealed}
-          accessibilityRole="button"
-          accessibilityLabel="Passer le manifeste"
-        >
-          <PhraseLine text={MANIFESTO[0]} phraseStyle={phrase0Style} traceStyle={trace0Style} />
-          <PhraseLine text={MANIFESTO[1]} phraseStyle={phrase1Style} traceStyle={trace1Style} />
-          <PhraseLine text={MANIFESTO[2]} phraseStyle={phrase2Style} traceStyle={trace2Style} />
+            pendant le manifeste fast-forward vers le wordmark.
+            L'ensemble descend et s'efface en sortie (exitStyle). */}
+        <Animated.View style={exitStyle}>
+          <Pressable
+            style={styles.stage}
+            onPress={revealNow}
+            disabled={revealed}
+            accessibilityRole="button"
+            accessibilityLabel="Passer le manifeste"
+          >
+            <PhraseLine text={MANIFESTO[0]} phraseStyle={phrase0Style} traceStyle={trace0Style} />
+            <PhraseLine text={MANIFESTO[1]} phraseStyle={phrase1Style} traceStyle={trace1Style} />
+            <PhraseLine text={MANIFESTO[2]} phraseStyle={phrase2Style} traceStyle={trace2Style} />
 
-          <Animated.View style={[styles.wordmarkWrap, wordmarkStyle]} pointerEvents="none">
-            <KolmiWordmark size={72} color={kolmiColors.accent} />
-          </Animated.View>
-        </Pressable>
-
-        <View style={styles.footer}>
-          <Animated.View style={[ctaStyle, busy && { opacity: 0.7 }]}>
-            <TouchableOpacity
-              activeOpacity={1}
-              onPress={onContinue}
-              onPressIn={handlePressIn}
-              onPressOut={handlePressOut}
-              disabled={busy}
-              accessibilityRole="button"
-              accessibilityState={{ disabled: busy }}
-              accessibilityLabel="Découvrir ma Maison — entrer dans Kolmi"
-            >
-              {/* Tampon : cadre bordeaux fin, pas de fill au repos. Le
-                  fill bordeaux apparaît au press en tween continu, comme
-                  une pression de cachet. */}
-              <Animated.View style={[styles.cta, ctaInkStyle]}>
-                <Animated.Text style={[styles.ctaText, ctaTextStyle]}>
-                  Découvrir ma Maison
-                </Animated.Text>
-                <Animated.Text style={[styles.ctaArrow, ctaTextStyle, arrowStyle]}>
-                  →
-                </Animated.Text>
-              </Animated.View>
-            </TouchableOpacity>
-          </Animated.View>
-        </View>
+            <Animated.View style={[styles.wordmarkWrap, wordmarkStyle]} pointerEvents="none">
+              <KolmiWordmark size={72} color={kolmiColors.accent} />
+            </Animated.View>
+          </Pressable>
+        </Animated.View>
       </SafeAreaView>
     </View>
   )
@@ -468,34 +440,5 @@ const styles = StyleSheet.create({
   wordmarkWrap: {
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  footer: {
-    paddingHorizontal: kolmiPaddingX,
-    paddingBottom: kolmiSpace.xl,
-    paddingTop: kolmiSpace.sm,
-    gap: kolmiSpace.md,
-  },
-  // Tampon éditorial : pas de cadre. Le press déclenche un fill bordeaux
-  // progressif (cf ctaInkStyle) qui agit comme la seule affordance visuelle.
-  cta: {
-    height: 60,
-    borderRadius: kolmiRadius.pill,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    paddingHorizontal: kolmiSpace.lg,
-  },
-  ctaText: {
-    fontFamily: kolmiFonts.serifItalic,
-    fontSize: 18,
-    letterSpacing: 0.2,
-    // color est piloté par ctaTextStyle (interpolation reanimated)
-  },
-  ctaArrow: {
-    fontFamily: kolmiFonts.serif,
-    fontSize: 18,
-    letterSpacing: 0,
-    marginLeft: 2,
   },
 })

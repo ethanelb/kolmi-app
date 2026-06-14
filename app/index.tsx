@@ -2,53 +2,34 @@ import React, { useCallback, useState } from 'react'
 import { View } from 'react-native'
 import { Redirect, useFocusEffect } from 'expo-router'
 import { kolmiColors } from '@/constants/kolmiTheme'
-import {
-  getKolmiDnaResult,
-  getKolmiProgress,
-  type KolmiProgress,
-} from '@/lib/kolmi/storage'
-
-type RouterState = {
-  progress: KolmiProgress
-  hasDna: boolean
-}
+import { getKolmiProgress, type KolmiProgress } from '@/lib/kolmi/storage'
 
 export default function Index() {
-  const [state, setState] = useState<RouterState | null>(null)
+  const [progress, setProgress] = useState<KolmiProgress | null>(null)
 
   // Re-evaluate every time index is focused — otherwise after a dev reset
   // the stale progress state keeps redirecting to (tabs).
   useFocusEffect(
     useCallback(() => {
       let cancelled = false
-      setState(null)
-      Promise.all([getKolmiProgress(), getKolmiDnaResult()]).then(
-        ([progress, dna]) => {
-          if (!cancelled) setState({ progress, hasDna: dna !== null })
-        },
-      )
+      setProgress(null)
+      getKolmiProgress().then((p) => {
+        if (!cancelled) setProgress(p)
+      })
       return () => {
         cancelled = true
       }
     }, []),
   )
 
-  if (!state) {
+  if (!progress) {
     return <View style={{ flex: 1, backgroundColor: kolmiColors.bg }} />
   }
-
-  const { progress, hasDna } = state
 
   if (!progress.hasCompletedBaseOnboarding) {
     return <Redirect href="/onboarding/welcome" />
   }
-  // hasCompletedMatchmaker without a stored DNA result means a corrupt or
-  // half-finished run — send the user back to the matchmaker rather than
-  // dropping them in the tabs without a Maison.
-  if (!progress.hasCompletedMatchmaker || !hasDna) {
-    return <Redirect href="/matchmaker" />
-  }
-  // Le tab central est l'entrée par défaut — la conversation du jour
-  // avec le matchmaker est la pièce maîtresse de l'app.
+  // Une fois l'onboarding de base terminé, on entre directement dans l'app.
+  // Le tab central (conversation du jour) est la pièce maîtresse.
   return <Redirect href="/(tabs)/conversation" />
 }

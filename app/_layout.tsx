@@ -142,12 +142,8 @@ export default function RootLayout() {
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: kolmiColors.bg } }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="onboarding" />
-        {/* Le manifeste de ready.tsx s'achève en wordmark — un fade plutôt
-            qu'un slide préserve l'effet "porte qui s'ouvre" et évite la
-            coupure visuelle entre le rituel d'entrée et le matchmaker. */}
-        <Stack.Screen name="matchmaker/index" options={{ gestureEnabled: false, animation: 'fade' }} />
-        <Stack.Screen name="matchmaker/result" options={{ gestureEnabled: false, animation: 'fade' }} />
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="matchmaker-chat/index" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="matches/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="meeting/request/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="meeting/schedule/[id]" options={{ animation: 'slide_from_right' }} />

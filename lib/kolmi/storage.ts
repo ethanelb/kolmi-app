@@ -1,11 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { dnaCategories } from '@/data/kolmiDna'
-import { kolmiQuestions } from '@/data/kolmiQuestions'
-import type { KolmiAnswer, KolmiDnaResult, Meeting } from './types'
+import type { KolmiDnaResult, Meeting } from './types'
 import { clearAllConversations } from './conversationEngine'
 import {
-  syncAnswerToDb,
-  syncDnaResultToDb,
   syncMeetingDeletionToDb,
   syncMeetingToDb,
   syncPassedProfileToDb,
@@ -31,6 +28,7 @@ const MEETINGS_KEY = 'kolmi.meetings'
 const PUSH_TOKEN_KEY = 'kolmi.push_token'
 const SUBSCRIPTION_KEY = 'kolmi.subscription'
 const HAS_PURCHASED_KEY = 'kolmi.has_purchased'
+const GIGI_INTRO_KEY = 'kolmi.gigi_introduced'
 
 export type KolmiProgress = {
   hasCompletedBaseOnboarding: boolean
@@ -102,68 +100,21 @@ export async function saveKolmiProgress(progress: Partial<KolmiProgress>) {
   fireAndForget(syncProgressToDb(next))
 }
 
-export async function getKolmiAnswers(): Promise<KolmiAnswer[]> {
-  const raw = await getJson<KolmiAnswer[]>(ANSWERS_KEY, [])
-  // Migration : si toutes les réponses stockées référencent des questions
-  // qui n'existent plus dans le registre actuel (ancien système 16-Q), on
-  // wipe pour libérer de la place + éviter de garder des données mortes.
-  // On évite le wipe partiel pour ne pas perdre une réponse en cours d'un
-  // test rejoué.
-  const validIds = new Set(kolmiQuestions.map((q) => q.id))
-  const valid = raw.filter((a) => validIds.has(a.questionId))
-  if (raw.length > 0 && valid.length === 0) {
-    try {
-      await AsyncStorage.removeItem(ANSWERS_KEY)
-    } catch (err) {
-      console.warn('[kolmi] failed to wipe stale answers', err)
-    }
-    return []
-  }
-  return valid
+// GIGI s'est-elle déjà présentée ? Le tout premier message de GIGI est un mot
+// de bienvenue ("moi c'est GIGI…") ; ensuite ce sont des relances. Flag local,
+// pas de sync DB nécessaire.
+export async function getGigiIntroduced(): Promise<boolean> {
+  return getJson<boolean>(GIGI_INTRO_KEY, false)
 }
 
-// Mutations critiques : on laisse l'erreur AsyncStorage remonter au caller
-// pour que l'UI ne navigue pas comme si tout était OK alors que la donnée
-// n'a pas été persistée.
-
-export async function saveKolmiAnswer(answer: KolmiAnswer) {
-  // Best-effort : appelé à chaque réponse du matchmaker, on évite de
-  // bloquer l'UI si AsyncStorage hiccupe sur une question. Le DNA final
-  // sera recalculé sur l'ensemble des réponses présentes.
-  try {
-    const current = await getKolmiAnswers()
-    const next = current.filter((item) => item.questionId !== answer.questionId)
-    next.push(answer)
-    await setJson(ANSWERS_KEY, next)
-    fireAndForget(syncAnswerToDb(answer))
-  } catch (err) {
-    console.warn('[kolmi] saveKolmiAnswer failed', err)
-  }
+export async function setGigiIntroduced(): Promise<void> {
+  await setJson(GIGI_INTRO_KEY, true)
 }
 
-// Wipe les réponses du matchmaker pour permettre de refaire le test.
-// On ne touche pas au DNA stocké : si l'utilisateur abandonne le retest,
-// son ancien résultat reste valide. Le nouveau DNA écrasera l'ancien
-// quand `saveKolmiDnaResult` sera appelé en fin de test.
-export async function clearKolmiAnswers(): Promise<void> {
-  try {
-    await AsyncStorage.removeItem(ANSWERS_KEY)
-  } catch (err) {
-    console.warn('[kolmi] clearKolmiAnswers failed', err)
-  }
-}
-
-// Cache mémoire du résultat DNA. Lu sur chaque focus du tab Profil et sur
-// l'écran résultat — on évite de retoucher AsyncStorage à chaque switch.
+// Cache mémoire du résultat DNA. Lu sur chaque focus du tab Profil.
 // Sentinelle séparée du `null` métier (pas de DNA) pour distinguer
 // "pas hydraté" de "hydraté → null".
 let _dnaCache: KolmiDnaResult | null | undefined = undefined
-
-export async function saveKolmiDnaResult(result: KolmiDnaResult) {
-  _dnaCache = result
-  await setJson(DNA_RESULT_KEY, result)
-  fireAndForget(syncDnaResultToDb(result))
-}
 
 export async function getKolmiDnaResult(): Promise<KolmiDnaResult | null> {
   if (_dnaCache !== undefined) return _dnaCache
